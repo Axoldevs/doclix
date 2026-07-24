@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root.dark {
+    --background: 228 20% 8%;
+    --foreground: 210 20% 94%;
+
+    --card: 228 18% 11%;
+    --card-foreground: 210 20% 94%;
+
+    --primary: 252 95% 68%;
+    --primary-foreground: 228 20% 8%;
+
+    --secondary: 228 14% 16%;
+    --secondary-foreground: 210 20% 94%;
+
+    --muted: 228 14% 15%;
+    --muted-foreground: 218 10% 62%;
+
+    --accent: 252 95% 68%;
+    --accent-foreground: 228 20% 8%;
+
+    --destructive: 0 72% 58%;
+    --destructive-foreground: 210 20% 96%;
+
+    --border: 228 14% 18%;
+    --input: 228 14% 18%;
+    --ring: 252 95% 68%;
+
+    --radius: 10px;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  ::selection {
+    background-color: hsl(var(--primary) / 0.3);
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 999px;
+  }
+}
+
+/* Prose styles for rendered section markdown content */
+.doclix-prose {
+  line-height: 1.75;
+}
+.doclix-prose h1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.02em;
+}
+.doclix-prose h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 1.5rem;
+  margin-bottom: 0.6rem;
+  letter-spacing: -0.01em;
+}
+.doclix-prose h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+.doclix-prose p {
+  margin-bottom: 0.9rem;
+}
+.doclix-prose ul,
+.doclix-prose ol {
+  margin-bottom: 0.9rem;
+  padding-left: 1.5rem;
+}
+.doclix-prose ul {
+  list-style: disc;
+}
+.doclix-prose ol {
+  list-style: decimal;
+}
+.doclix-prose li {
+  margin-bottom: 0.25rem;
+}
+.doclix-prose blockquote {
+  border-left: 3px solid hsl(var(--primary));
+  padding-left: 1rem;
+  margin: 1rem 0;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+.doclix-prose code {
+  background: hsl(var(--muted));
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.875em;
+}
+.doclix-prose pre {
+  background: hsl(var(--muted));
+  padding: 1rem;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  margin-bottom: 1rem;
+  border: 1px solid hsl(var(--border));
+}
+.doclix-prose pre code {
+  background: transparent;
+  padding: 0;
+}
+.doclix-prose a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.doclix-prose hr {
+  border-color: hsl(var(--border));
+  margin: 1.5rem 0;
+}
+.doclix-prose strong {
+  font-weight: 700;
+}
+.doclix-prose u {
+  text-decoration: underline;
+}
+.doclix-prose del {
+  text-decoration: line-through;
+}

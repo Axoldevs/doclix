@@ -1,0 +1,4 @@
+Placeholder: no logo file was uploaded with this request.
+Replace this file with your actual logo asset (e.g. logo.svg) and
+update src/components/ProjectHeader.tsx to import and render it in
+place of the BookOpen icon.
