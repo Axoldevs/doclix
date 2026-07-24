@@ -13,7 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { useProject } from '@/hooks/useProject';
 import { useSections } from '@/hooks/useSections';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 import { renderMarkdown } from '@/lib/markdown';
 import { slugify } from '@/lib/utils';
 
@@ -142,7 +142,7 @@ export default function DocProjectPage() {
   }
 
   async function handleDeleteProject() {
-    const { error } = await supabase.from('projects').delete().eq('id', currentProject.id);
+    const { error } = await getSupabase().from('projects').delete().eq('id', currentProject.id);
     if (!error) {
       showToast('Project deleted', 'success');
       navigate('/');

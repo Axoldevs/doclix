@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 import type { Section } from '@/types/database';
 
 export function useSections(projectId: string | undefined) {
@@ -12,7 +12,7 @@ export function useSections(projectId: string | undefined) {
     setLoading(true);
     setError(null);
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('sections')
       .select('*')
       .eq('project_id', projectId)
@@ -38,7 +38,7 @@ export function useSections(projectId: string | undefined) {
         ? Math.max(...sections.map((s) => s.position)) + 1
         : 0;
 
-      const { data, error } = await supabase
+      const { data, error } = await getSupabase()
         .from('sections')
         .insert({
           project_id: projectId,
@@ -75,7 +75,7 @@ export function useSections(projectId: string | undefined) {
         position: nextPosition++,
       }));
 
-      const { data, error } = await supabase.from('sections').insert(rows).select();
+      const { data, error } = await getSupabase().from('sections').insert(rows).select();
 
       if (error) return { error: error.message, sections: null };
 
@@ -87,7 +87,7 @@ export function useSections(projectId: string | undefined) {
 
   const updateSection = useCallback(
     async (id: string, updates: { title?: string; content?: string; slug?: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = await getSupabase()
         .from('sections')
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', id)
@@ -103,7 +103,7 @@ export function useSections(projectId: string | undefined) {
   );
 
   const deleteSection = useCallback(async (id: string) => {
-    const { error } = await supabase.from('sections').delete().eq('id', id);
+    const { error } = await getSupabase().from('sections').delete().eq('id', id);
     if (error) return { error: error.message };
     setSections((prev) => prev.filter((s) => s.id !== id));
     return { error: null };
@@ -121,6 +121,7 @@ export function useSections(projectId: string | undefined) {
         .filter((s): s is Section => Boolean(s));
     });
 
+    const supabase = getSupabase();
     const updates = orderedIds.map((id, idx) =>
       supabase.from('sections').update({ position: idx }).eq('id', id)
     );

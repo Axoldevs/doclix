@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 import type { Project } from '@/types/database';
 
 export function useProject(slug: string | undefined) {
@@ -14,7 +14,7 @@ export function useProject(slug: string | undefined) {
     setError(null);
     setNotFound(false);
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('projects')
       .select('*')
       .eq('slug', slug)

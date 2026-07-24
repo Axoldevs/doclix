@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 import type { Project } from '@/types/database';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -12,7 +12,7 @@ export function useProjects() {
   const fetchProjects = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('projects')
       .select('*')
       .order('updated_at', { ascending: false });
@@ -33,7 +33,7 @@ export function useProjects() {
     async (input: { title: string; description: string | null; slug: string }) => {
       if (!user) return { error: 'You must be signed in.', project: null };
 
-      const { data, error } = await supabase
+      const { data, error } = await getSupabase()
         .from('projects')
         .insert({
           title: input.title,
@@ -53,7 +53,7 @@ export function useProjects() {
   );
 
   const deleteProject = useCallback(async (id: string) => {
-    const { error } = await supabase.from('projects').delete().eq('id', id);
+    const { error } = await getSupabase().from('projects').delete().eq('id', id);
     if (error) return { error: error.message };
     setProjects((prev) => prev.filter((p) => p.id !== id));
     return { error: null };
