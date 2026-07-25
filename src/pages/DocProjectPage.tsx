@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Pencil, Eye, Plus } from 'lucide-react';
 import { ProjectHeader } from '@/components/ProjectHeader';
@@ -7,6 +7,7 @@ import { SectionFooterNav } from '@/components/SectionFooterNav';
 import { MarkdownEditor } from '@/components/MarkdownEditor';
 import { AddSectionDialog } from '@/components/AddSectionDialog';
 import { ProjectSettingsDialog } from '@/components/ProjectSettingsDialog';
+import { TranslateButton } from '@/components/TranslateButton';
 import { Button } from '@/components/ui/Button';
 import { FullPageSpinner, ErrorBanner, EmptyState } from '@/components/StateViews';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,7 +16,7 @@ import { useProject } from '@/hooks/useProject';
 import { useSections } from '@/hooks/useSections';
 import { getSupabase } from '@/lib/supabase';
 import { renderMarkdown } from '@/lib/markdown';
-import { slugify } from '@/lib/utils';
+import { slugify, cn } from '@/lib/utils';
 
 export default function DocProjectPage() {
   const { projectSlug, sectionSlug } = useParams();
@@ -38,6 +39,7 @@ export default function DocProjectPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [translatedContent, setTranslatedContent] = useState<string | null>(null);
 
   const isOwner = Boolean(user && project && user.id === project.owner_id);
 
@@ -50,6 +52,11 @@ export default function DocProjectPage() {
   const activeIndex = activeSection ? sections.findIndex((s) => s.id === activeSection.id) : -1;
   const prevSection = activeIndex > 0 ? sections[activeIndex - 1] : null;
   const nextSection = activeIndex >= 0 && activeIndex < sections.length - 1 ? sections[activeIndex + 1] : null;
+
+  // Reset any translated view whenever the user navigates to a different section
+  useEffect(() => {
+    setTranslatedContent(null);
+  }, [activeSection?.id]);
 
   if (projectLoading) return <FullPageSpinner label="Loading project…" />;
 
@@ -202,29 +209,47 @@ export default function DocProjectPage() {
             </main>
           ) : (
             <>
-              <div className="flex flex-1 flex-col overflow-hidden px-4 py-6 sm:px-8">
-                <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col overflow-hidden">
+              <div
+                className={cn(
+                  'flex flex-1 flex-col px-4 py-6 sm:px-8',
+                  editing ? 'overflow-hidden' : 'overflow-y-auto scrollbar-thin'
+                )}
+              >
+                <div
+                  className={cn(
+                    'mx-auto flex w-full max-w-3xl flex-1 flex-col',
+                    editing && 'overflow-hidden'
+                  )}
+                >
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <h1 className="text-2xl font-semibold tracking-tight">{activeSection.title}</h1>
-                    {isOwner && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditing((prev) => !prev)}
-                      >
-                        {editing ? (
-                          <>
-                            <Eye className="h-3.5 w-3.5" />
-                            View
-                          </>
-                        ) : (
-                          <>
-                            <Pencil className="h-3.5 w-3.5" />
-                            Edit
-                          </>
-                        )}
-                      </Button>
-                    )}
+                    <div className="flex shrink-0 items-center gap-2">
+                      {!editing && (
+                        <TranslateButton
+                          sourceText={activeSection.content}
+                          onTranslated={setTranslatedContent}
+                        />
+                      )}
+                      {isOwner && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditing((prev) => !prev)}
+                        >
+                          {editing ? (
+                            <>
+                              <Eye className="h-3.5 w-3.5" />
+                              View
+                            </>
+                          ) : (
+                            <>
+                              <Pencil className="h-3.5 w-3.5" />
+                              Edit
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {editing && isOwner ? (
@@ -237,10 +262,10 @@ export default function DocProjectPage() {
                     </div>
                   ) : (
                     <div
-                      className="doclix-prose flex-1 overflow-y-auto scrollbar-thin"
+                      className="doclix-prose flex-1"
                       dangerouslySetInnerHTML={{
                         __html:
-                          renderMarkdown(activeSection.content) ||
+                          renderMarkdown(translatedContent ?? activeSection.content) ||
                           '<p class="text-muted-foreground">This section has no content yet.</p>',
                       }}
                     />
