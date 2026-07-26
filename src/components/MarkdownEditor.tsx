@@ -7,10 +7,13 @@ import {
   Code,
   Heading1,
   Heading2,
+  Heading3,
   List,
   ListOrdered,
   Quote,
   Link2,
+  Table2,
+  Minus,
   Undo2,
   Redo2,
   Eye,
@@ -20,6 +23,7 @@ import {
   Loader2,
   AlertCircle,
   Upload,
+  ImagePlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { renderMarkdown } from '@/lib/markdown';
@@ -27,6 +31,8 @@ import { useHistory } from '@/hooks/useHistory';
 import { useAutoSave, type SaveStatus } from '@/hooks/useAutoSave';
 import { buildImportPreview, isSupportedImportFile, FileImportError } from '@/lib/fileImport';
 import { useToast } from '@/contexts/ToastContext';
+import { LinkDialog } from '@/components/LinkDialog';
+import { TableDialog } from '@/components/TableDialog';
 
 type ViewMode = 'edit' | 'split' | 'preview';
 
@@ -64,6 +70,19 @@ function prefixLines(textarea: HTMLTextAreaElement, prefix: string) {
   return { newValue, cursorStart: lineStart, cursorEnd: lineStart + prefixed.length };
 }
 
+function insertBlockAtCursor(textarea: HTMLTextAreaElement, block: string) {
+  const { selectionStart, selectionEnd, value } = textarea;
+  const before = value.slice(0, selectionStart);
+  const after = value.slice(selectionEnd);
+  const leadPad = before.length === 0 ? '' : before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n';
+  const trailPad = after.startsWith('\n') ? '' : '\n';
+  const insertText = `${leadPad}${block}${trailPad}`;
+  const newValue = before + insertText + after;
+  const cursorStart = before.length + leadPad.length;
+  const cursorEnd = cursorStart + block.length;
+  return { newValue, cursorStart, cursorEnd };
+}
+
 function saveStatusLabel(status: SaveStatus) {
   switch (status) {
     case 'saving':
@@ -84,6 +103,10 @@ export function MarkdownEditor({ initialContent, onSave, readOnly }: MarkdownEdi
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showToast } = useToast();
   const { status, saveNow } = useAutoSave(value, onSave);
+
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkInitialText, setLinkInitialText] = useState('');
+  const [tableDialogOpen, setTableDialogOpen] = useState(false);
 
   useEffect(() => {
     reset(initialContent);
@@ -134,8 +157,45 @@ export function MarkdownEditor({ initialContent, onSave, readOnly }: MarkdownEdi
     e.target.value = '';
   }
 
+  function openLinkDialog() {
+    const ta = textareaRef.current;
+    const selected = ta ? ta.value.slice(ta.selectionStart, ta.selectionEnd) : '';
+    setLinkInitialText(selected);
+    setLinkDialogOpen(true);
+  }
+
+  function handleLinkConfirm(text: string, url: string) {
+    applyTransform((ta) => {
+      const { selectionStart, selectionEnd, value: v } = ta;
+      const markdown = `[${text}](${url})`;
+      const newValue = v.slice(0, selectionStart) + markdown + v.slice(selectionEnd);
+      const cursorPos = selectionStart + markdown.length;
+      return { newValue, cursorStart: cursorPos, cursorEnd: cursorPos };
+    });
+  }
+
+  function handleTableConfirm(markdown: string) {
+    applyTransform((ta) => insertBlockAtCursor(ta, markdown));
+  }
+
+  function handleImageInsert() {
+    applyTransform((ta) => wrapSelection(ta, '![', '](image-url)'));
+  }
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     const mod = e.metaKey || e.ctrlKey;
+
+    if (e.key === 'Tab' && !mod) {
+      e.preventDefault();
+      applyTransform((ta) => {
+        const { selectionStart, selectionEnd, value: v } = ta;
+        const newValue = v.slice(0, selectionStart) + '  ' + v.slice(selectionEnd);
+        const pos = selectionStart + 2;
+        return { newValue, cursorStart: pos, cursorEnd: pos };
+      });
+      return;
+    }
+
     if (!mod) return;
 
     if (e.key === 'b') {
@@ -147,6 +207,9 @@ export function MarkdownEditor({ initialContent, onSave, readOnly }: MarkdownEdi
     } else if (e.key === 'u') {
       e.preventDefault();
       applyTransform((ta) => wrapSelection(ta, '__'));
+    } else if (e.key === 'k') {
+      e.preventDefault();
+      openLinkDialog();
     } else if (e.key === 'z' && e.shiftKey) {
       e.preventDefault();
       redo();
@@ -162,25 +225,80 @@ export function MarkdownEditor({ initialContent, onSave, readOnly }: MarkdownEdi
   const statusInfo = saveStatusLabel(status);
   const StatusIcon = statusInfo.icon;
 
-  const toolbarButtons = [
+  const headingButtons = [
+    { icon: Heading1, label: 'Heading 1', action: () => applyTransform((ta) => prefixLines(ta, '# ')) },
+    { icon: Heading2, label: 'Heading 2', action: () => applyTransform((ta) => prefixLines(ta, '## ')) },
+    { icon: Heading3, label: 'Heading 3', action: () => applyTransform((ta) => prefixLines(ta, '### ')) },
+  ];
+
+  const formatButtons = [
     { icon: Bold, label: 'Bold (Ctrl+B)', action: () => applyTransform((ta) => wrapSelection(ta, '**')) },
     { icon: Italic, label: 'Italic (Ctrl+I)', action: () => applyTransform((ta) => wrapSelection(ta, '*')) },
     { icon: Underline, label: 'Underline (Ctrl+U)', action: () => applyTransform((ta) => wrapSelection(ta, '__')) },
     { icon: Strikethrough, label: 'Strikethrough', action: () => applyTransform((ta) => wrapSelection(ta, '~~')) },
     { icon: Code, label: 'Inline code', action: () => applyTransform((ta) => wrapSelection(ta, '`')) },
-    { icon: Heading1, label: 'Heading 1', action: () => applyTransform((ta) => prefixLines(ta, '# ')) },
-    { icon: Heading2, label: 'Heading 2', action: () => applyTransform((ta) => prefixLines(ta, '## ')) },
+  ];
+
+  const blockButtons = [
     { icon: List, label: 'Bullet list', action: () => applyTransform((ta) => prefixLines(ta, '- ')) },
     { icon: ListOrdered, label: 'Numbered list', action: () => applyTransform((ta) => prefixLines(ta, '1. ')) },
     { icon: Quote, label: 'Block quote', action: () => applyTransform((ta) => prefixLines(ta, '> ')) },
-    { icon: Link2, label: 'Link', action: () => applyTransform((ta) => wrapSelection(ta, '[', '](url)')) },
+    { icon: Minus, label: 'Horizontal rule', action: () => applyTransform((ta) => insertBlockAtCursor(ta, '---')) },
+  ];
+
+  const insertButtons = [
+    { icon: Link2, label: 'Link (Ctrl+K)', action: openLinkDialog },
+    { icon: ImagePlus, label: 'Image', action: handleImageInsert },
+    { icon: Table2, label: 'Table', action: () => setTableDialogOpen(true) },
   ];
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card">
       {!readOnly && (
         <div className="flex flex-wrap items-center gap-1 border-b border-border px-2 py-1.5">
-          {toolbarButtons.map(({ icon: Icon, label, action }) => (
+          {headingButtons.map(({ icon: Icon, label, action }) => (
+            <button
+              key={label}
+              type="button"
+              title={label}
+              onClick={action}
+              className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
+            >
+              <Icon className="h-4 w-4" />
+            </button>
+          ))}
+
+          <div className="mx-1 h-5 w-px bg-border" />
+
+          {formatButtons.map(({ icon: Icon, label, action }) => (
+            <button
+              key={label}
+              type="button"
+              title={label}
+              onClick={action}
+              className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
+            >
+              <Icon className="h-4 w-4" />
+            </button>
+          ))}
+
+          <div className="mx-1 h-5 w-px bg-border" />
+
+          {blockButtons.map(({ icon: Icon, label, action }) => (
+            <button
+              key={label}
+              type="button"
+              title={label}
+              onClick={action}
+              className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
+            >
+              <Icon className="h-4 w-4" />
+            </button>
+          ))}
+
+          <div className="mx-1 h-5 w-px bg-border" />
+
+          {insertButtons.map(({ icon: Icon, label, action }) => (
             <button
               key={label}
               type="button"
@@ -284,7 +402,7 @@ export function MarkdownEditor({ initialContent, onSave, readOnly }: MarkdownEdi
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
             readOnly={readOnly}
-            placeholder="Start writing… Discord-style markdown supported: **bold**, *italic*, `code`, # headings, - lists"
+            placeholder="Start writing… GitBook-style markdown supported: **bold**, *italic*, `code`, # headings, - lists, tables, and [links](url)"
             className={cn(
               'h-full w-full resize-none overflow-y-auto scrollbar-thin bg-transparent p-4 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none',
               viewMode === 'split' && 'border-r border-border'
@@ -299,6 +417,14 @@ export function MarkdownEditor({ initialContent, onSave, readOnly }: MarkdownEdi
           />
         )}
       </div>
+
+      <LinkDialog
+        open={linkDialogOpen}
+        onOpenChange={setLinkDialogOpen}
+        initialText={linkInitialText}
+        onConfirm={handleLinkConfirm}
+      />
+      <TableDialog open={tableDialogOpen} onOpenChange={setTableDialogOpen} onConfirm={handleTableConfirm} />
     </div>
   );
 }

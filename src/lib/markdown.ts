@@ -49,6 +49,20 @@ function renderInline(text: string): string {
   return out;
 }
 
+function isTableSeparatorRow(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed.includes('-') || !trimmed.includes('|')) return false;
+  const cells = trimmed.replace(/^\|/, '').replace(/\|$/, '').split('|');
+  return cells.length > 0 && cells.every((c) => /^\s*:?-+:?\s*$/.test(c));
+}
+
+function splitTableRow(line: string): string[] {
+  let trimmed = line.trim();
+  if (trimmed.startsWith('|')) trimmed = trimmed.slice(1);
+  if (trimmed.endsWith('|')) trimmed = trimmed.slice(0, -1);
+  return trimmed.split('|').map((c) => c.trim());
+}
+
 export function renderMarkdown(source: string): string {
   const escaped = escapeHtml(source);
   const lines = escaped.split('\n');
@@ -68,6 +82,42 @@ export function renderMarkdown(source: string): string {
 
   while (i < lines.length) {
     const line = lines[i];
+
+    // Tables: header row, separator row (---|---), then body rows
+    if (line.trim().includes('|') && i + 1 < lines.length && isTableSeparatorRow(lines[i + 1])) {
+      flushList();
+      const headerCells = splitTableRow(line);
+      const alignCells = splitTableRow(lines[i + 1]).map((c) => {
+        const left = c.startsWith(':');
+        const right = c.endsWith(':');
+        if (left && right) return 'center';
+        if (right) return 'right';
+        if (left) return 'left';
+        return '';
+      });
+      i += 2;
+      const bodyRows: string[][] = [];
+      while (i < lines.length && lines[i].trim().includes('|') && lines[i].trim() !== '') {
+        bodyRows.push(splitTableRow(lines[i]));
+        i++;
+      }
+
+      const alignStyle = (idx: number) =>
+        alignCells[idx] ? ` style="text-align:${alignCells[idx]}"` : '';
+
+      const thead = `<thead><tr>${headerCells
+        .map((c, idx) => `<th${alignStyle(idx)}>${renderInline(c)}</th>`)
+        .join('')}</tr></thead>`;
+      const tbody = `<tbody>${bodyRows
+        .map(
+          (row) =>
+            `<tr>${row.map((c, idx) => `<td${alignStyle(idx)}>${renderInline(c)}</td>`).join('')}</tr>`
+        )
+        .join('')}</tbody>`;
+
+      html.push(`<div class="doclix-table-wrap"><table>${thead}${tbody}</table></div>`);
+      continue;
+    }
 
     // Code block ```lang ... ```
     if (/^```/.test(line.trim())) {

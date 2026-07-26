@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
+import { LanguageProvider } from './contexts/LanguageContext';
 import { initSupabase } from './lib/supabase';
 import './index.css';
 
@@ -38,7 +39,9 @@ initSupabase()
       <React.StrictMode>
         <BrowserRouter>
           <AuthProvider>
-            <App />
+            <LanguageProvider>
+              <App />
+            </LanguageProvider>
           </AuthProvider>
         </BrowserRouter>
       </React.StrictMode>

@@ -33,9 +33,12 @@ export function TranslateButton({ sourceText, onTranslated, disabled }: Translat
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Reset translated state whenever the underlying content changes (e.g. navigating sections)
+  // Reflect the saved preferred language whenever the underlying content
+  // changes (e.g. navigating sections), so the button doesn't visually
+  // reset to "Original" while the page is actually showing a translation.
   useEffect(() => {
-    setActiveLang(null);
+    const preferred = getPreferredLanguage();
+    setActiveLang(preferred === 'en' ? null : preferred);
     setError(null);
   }, [sourceText]);
 
@@ -93,7 +96,7 @@ export function TranslateButton({ sourceText, onTranslated, disabled }: Translat
             onClick={() => handleSelect('en')}
             className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs hover:bg-secondary/60"
           >
-            Original
+            Original (English)
             {!activeLang && <Check className="h-3 w-3 text-primary" />}
           </button>
           <div className="my-1 h-px bg-border" />

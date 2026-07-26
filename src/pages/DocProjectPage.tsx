@@ -15,8 +15,10 @@ import { useToast } from '@/contexts/ToastContext';
 import { useProject } from '@/hooks/useProject';
 import { useSections } from '@/hooks/useSections';
 import { getSupabase } from '@/lib/supabase';
+import { getPreferredLanguage, translateText } from '@/lib/translate';
 import { renderMarkdown } from '@/lib/markdown';
 import { slugify, cn } from '@/lib/utils';
+import type { Section } from '@/types/database';
 
 export default function DocProjectPage() {
   const { projectSlug, sectionSlug } = useParams();
@@ -30,7 +32,9 @@ export default function DocProjectPage() {
     loading: sectionsLoading,
     error: sectionsError,
     createSection,
+    createSectionAt,
     createSections,
+    duplicateSection,
     updateSection,
     deleteSection,
     reorderSections,
@@ -40,6 +44,7 @@ export default function DocProjectPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [translatedContent, setTranslatedContent] = useState<string | null>(null);
+  const [insertAfterSection, setInsertAfterSection] = useState<Section | null>(null);
 
   const isOwner = Boolean(user && project && user.id === project.owner_id);
 
@@ -53,9 +58,36 @@ export default function DocProjectPage() {
   const prevSection = activeIndex > 0 ? sections[activeIndex - 1] : null;
   const nextSection = activeIndex >= 0 && activeIndex < sections.length - 1 ? sections[activeIndex + 1] : null;
 
-  // Reset any translated view whenever the user navigates to a different section
+  // When the user navigates to a different section, keep them in their chosen
+  // language rather than snapping back to the original. If they've picked a
+  // non-English language before (saved in a cookie), translate the new
+  // section's content into it automatically.
   useEffect(() => {
-    setTranslatedContent(null);
+    if (!activeSection) {
+      setTranslatedContent(null);
+      return;
+    }
+
+    const preferred = getPreferredLanguage();
+    if (preferred === 'en') {
+      setTranslatedContent(null);
+      return;
+    }
+
+    let cancelled = false;
+    translateText(activeSection.content, preferred, 'en')
+      .then((translated) => {
+        if (!cancelled) setTranslatedContent(translated);
+      })
+      .catch(() => {
+        // If translation fails (e.g. offline), fall back to the original
+        // rather than leaving a stale translation from the previous section.
+        if (!cancelled) setTranslatedContent(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [activeSection?.id]);
 
   if (projectLoading) return <FullPageSpinner label="Loading project…" />;
@@ -68,7 +100,7 @@ export default function DocProjectPage() {
           <EmptyState
             title="Project not found"
             description="This documentation project doesn't exist or may have been deleted."
-            action={<Button onClick={() => navigate('/')}>Back to projects</Button>}
+            action={<Button onClick={() => navigate('/dashboard')}>Back to projects</Button>}
           />
         </main>
       </div>
@@ -96,16 +128,43 @@ export default function DocProjectPage() {
   async function handleCreateSection(input: { title: string; slug: string; content?: string }) {
     const existing = sections.some((s) => s.slug === input.slug);
     const finalSlug = existing ? `${input.slug}-${Date.now().toString(36)}` : input.slug;
-    const { error, section } = await createSection({
-      title: input.title,
-      slug: finalSlug,
-      content: input.content,
-    });
+
+    const result = insertAfterSection
+      ? await createSectionAt(
+          { title: input.title, slug: finalSlug, content: input.content },
+          sections.findIndex((s) => s.id === insertAfterSection.id) + 1
+        )
+      : await createSection({ title: input.title, slug: finalSlug, content: input.content });
+
+    const { error, section } = result;
     if (!error && section) {
       navigate(`/docs/${currentProject.slug}/${section.slug}`);
-      showToast('Section created', 'success');
+      showToast(insertAfterSection ? `Section inserted after "${insertAfterSection.title}"` : 'Section created', 'success');
+      setInsertAfterSection(null);
     }
     return { error };
+  }
+
+  async function handleDuplicateSection(section: Section) {
+    const { error, section: created } = await duplicateSection(section.id);
+    if (!error && created) {
+      navigate(`/docs/${currentProject.slug}/${created.slug}`);
+      showToast(`Duplicated "${section.title}"`, 'success');
+    } else if (error) {
+      showToast(error, 'error');
+    }
+  }
+
+  function handleRequestInsertAfter(section: Section) {
+    setInsertAfterSection(section);
+    setAddDialogOpen(true);
+  }
+
+  function handleRequestDelete(section: Section) {
+    handleDeleteSection(section.id).then(({ error }) => {
+      if (error) showToast(error, 'error');
+      else showToast(`Deleted "${section.title}"`, 'success');
+    });
   }
 
   async function handleCreateMultipleSections(
@@ -152,7 +211,7 @@ export default function DocProjectPage() {
     const { error } = await getSupabase().from('projects').delete().eq('id', currentProject.id);
     if (!error) {
       showToast('Project deleted', 'success');
-      navigate('/');
+      navigate('/dashboard');
     }
     return { error: error?.message ?? null };
   }
@@ -173,8 +232,14 @@ export default function DocProjectPage() {
           activeSlug={activeSection?.slug}
           isOwner={isOwner}
           onReorder={handleReorder}
-          onAddSection={() => setAddDialogOpen(true)}
+          onAddSection={() => {
+            setInsertAfterSection(null);
+            setAddDialogOpen(true);
+          }}
           onOpenSettings={() => setSettingsOpen(true)}
+          onInsertAfter={handleRequestInsertAfter}
+          onDuplicate={handleDuplicateSection}
+          onDeleteSection={handleRequestDelete}
         />
 
         <div className="flex flex-1 flex-col overflow-hidden">
@@ -263,6 +328,7 @@ export default function DocProjectPage() {
                   ) : (
                     <div
                       className="doclix-prose flex-1"
+                      data-no-translate
                       dangerouslySetInnerHTML={{
                         __html:
                           renderMarkdown(translatedContent ?? activeSection.content) ||
@@ -287,9 +353,13 @@ export default function DocProjectPage() {
 
       <AddSectionDialog
         open={addDialogOpen}
-        onOpenChange={setAddDialogOpen}
+        onOpenChange={(open) => {
+          setAddDialogOpen(open);
+          if (!open) setInsertAfterSection(null);
+        }}
         onCreate={handleCreateSection}
         onCreateMultiple={handleCreateMultipleSections}
+        insertAfterTitle={insertAfterSection?.title ?? null}
       />
 
       <ProjectSettingsDialog

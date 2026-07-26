@@ -39,7 +39,7 @@ export default function ResetPasswordPage() {
       setError(error);
     } else {
       setDone(true);
-      setTimeout(() => navigate('/'), 1800);
+      setTimeout(() => navigate('/dashboard'), 1800);
     }
   }
 

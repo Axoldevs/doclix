@@ -1,6 +1,9 @@
 import { Routes, Route } from 'react-router-dom';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import LandingPage from '@/pages/LandingPage';
+import BlogListPage from '@/pages/BlogListPage';
+import BlogPostPage from '@/pages/BlogPostPage';
 import DashboardPage from '@/pages/DashboardPage';
 import LoginPage from '@/pages/LoginPage';
 import SignupPage from '@/pages/SignupPage';
@@ -13,8 +16,11 @@ export default function App() {
   return (
     <ToastProvider>
       <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/blog" element={<BlogListPage />} />
+        <Route path="/blog/:postSlug" element={<BlogPostPage />} />
         <Route
-          path="/"
+          path="/dashboard"
           element={
             <ProtectedRoute>
               <DashboardPage />

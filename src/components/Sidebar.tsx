@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   DndContext,
@@ -15,7 +15,18 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Plus, Menu, X, FileText, Settings } from 'lucide-react';
+import {
+  GripVertical,
+  Plus,
+  Menu,
+  X,
+  FileText,
+  Settings,
+  MoreVertical,
+  CornerDownRight,
+  Copy,
+  Trash2,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Project, Section } from '@/types/database';
 import { Button } from '@/components/ui/Button';
@@ -28,6 +39,90 @@ interface SidebarProps {
   onReorder: (orderedIds: string[]) => void;
   onAddSection: () => void;
   onOpenSettings: () => void;
+  onInsertAfter?: (section: Section) => void;
+  onDuplicate?: (section: Section) => void;
+  onDeleteSection?: (section: Section) => void;
+}
+
+function SectionMenu({
+  section,
+  onInsertAfter,
+  onDuplicate,
+  onDelete,
+}: {
+  section: Section;
+  onInsertAfter?: (section: Section) => void;
+  onDuplicate?: (section: Section) => void;
+  onDelete?: (section: Section) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen((prev) => !prev);
+        }}
+        className={cn(
+          'rounded-md p-1 text-muted-foreground opacity-0 transition-opacity duration-200 hover:bg-secondary hover:text-foreground group-hover:opacity-100',
+          open && 'opacity-100 bg-secondary'
+        )}
+        aria-label="Section options"
+      >
+        <MoreVertical className="h-3.5 w-3.5" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-20 mt-1 w-44 overflow-hidden rounded-lg border border-border bg-card py-1 shadow-xl">
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onInsertAfter?.(section);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-foreground hover:bg-secondary"
+          >
+            <CornerDownRight className="h-3.5 w-3.5" />
+            Insert section after
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onDuplicate?.(section);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-foreground hover:bg-secondary"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            Duplicate
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onDelete?.(section);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function SortableItem({
@@ -36,12 +131,18 @@ function SortableItem({
   isActive,
   isOwner,
   onNavigate,
+  onInsertAfter,
+  onDuplicate,
+  onDelete,
 }: {
   section: Section;
   projectSlug: string;
   isActive: boolean;
   isOwner: boolean;
   onNavigate: () => void;
+  onInsertAfter?: (section: Section) => void;
+  onDuplicate?: (section: Section) => void;
+  onDelete?: (section: Section) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: section.id,
@@ -78,6 +179,14 @@ function SortableItem({
         <FileText className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate">{section.title}</span>
       </Link>
+      {isOwner && (
+        <SectionMenu
+          section={section}
+          onInsertAfter={onInsertAfter}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+        />
+      )}
     </div>
   );
 }
@@ -90,6 +199,9 @@ export function Sidebar({
   onReorder,
   onAddSection,
   onOpenSettings,
+  onInsertAfter,
+  onDuplicate,
+  onDeleteSection,
 }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
@@ -142,6 +254,9 @@ export function Sidebar({
                   isActive={section.slug === activeSlug}
                   isOwner={isOwner}
                   onNavigate={() => setMobileOpen(false)}
+                  onInsertAfter={onInsertAfter}
+                  onDuplicate={onDuplicate}
+                  onDelete={onDeleteSection}
                 />
               ))}
             </div>

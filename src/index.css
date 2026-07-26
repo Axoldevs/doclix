@@ -30,6 +30,38 @@
     --ring: 252 95% 68%;
 
     --radius: 10px;
+
+    --teal: 172 66% 62%;
+  }
+}
+
+@layer utilities {
+  @keyframes float-slow {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes caret-blink {
+    0%, 45% { opacity: 1; }
+    50%, 95% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+  .animate-float-slow {
+    animation: float-slow 6s ease-in-out infinite;
+  }
+  .animate-fade-up {
+    animation: fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .animate-caret {
+    animation: caret-blink 1.1s step-end infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-float-slow, .animate-fade-up, .animate-caret {
+      animation: none;
+    }
   }
 }
 
@@ -145,4 +177,33 @@
 }
 .doclix-prose del {
   text-decoration: line-through;
+}
+.doclix-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 1rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+}
+.doclix-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.925em;
+}
+.doclix-prose th {
+  background: hsl(var(--muted));
+  font-weight: 600;
+  text-align: left;
+}
+.doclix-prose th,
+.doclix-prose td {
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid hsl(var(--border));
+  border-right: 1px solid hsl(var(--border));
+}
+.doclix-prose th:last-child,
+.doclix-prose td:last-child {
+  border-right: none;
+}
+.doclix-prose tr:last-child td {
+  border-bottom: none;
 }

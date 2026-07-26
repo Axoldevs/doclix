@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
-import { User, Mail, KeyRound, AlertTriangle } from 'lucide-react';
+import { User, Mail, KeyRound, AlertTriangle, Languages } from 'lucide-react';
 import { ProjectHeader } from '@/components/ProjectHeader';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
+import { useLanguage, COMMON_LANGUAGES } from '@/contexts/LanguageContext';
 import {
   Dialog,
   DialogContent,
@@ -47,6 +48,7 @@ export default function AccountPage() {
   const { user, loading, updateDisplayName, updateEmail, updatePassword, deleteAccount, signOut } =
     useAuth();
   const { showToast } = useToast();
+  const { language, setLanguage, hasTranslations, t } = useLanguage();
 
   const [displayName, setDisplayName] = useState(
     (user?.user_metadata?.display_name as string | undefined) ?? ''
@@ -130,13 +132,45 @@ export default function AccountPage() {
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-10 sm:px-6">
         <div className="mb-8">
-          <h1 className="text-2xl font-semibold tracking-tight">Account settings</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t('settings.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Manage your profile, sign-in details, and account.
           </p>
         </div>
 
         <div className="flex flex-col gap-6">
+          <SettingsCard
+            icon={Languages}
+            title={t('settings.languageTitle')}
+            description={t('settings.languageDescription')}
+          >
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="site-language">{t('settings.languageTitle')}</Label>
+                <select
+                  id="site-language"
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                  className="h-10 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="en">English (original)</option>
+                  {COMMON_LANGUAGES.filter((l) => l.code !== 'en').map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-xs text-muted-foreground">{t('settings.languageNote')}</p>
+              {!hasTranslations && (
+                <p className="text-xs text-muted-foreground">
+                  This language doesn't have interface translations yet, so DOCLIX is shown in
+                  English for now. More languages are on the way.
+                </p>
+              )}
+            </div>
+          </SettingsCard>
+
           <SettingsCard icon={User} title="Profile" description="How your name appears in DOCLIX">
             <form onSubmit={handleSaveName} className="flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">

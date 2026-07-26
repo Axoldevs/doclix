@@ -28,6 +28,8 @@ interface AddSectionDialogProps {
   onCreateMultiple: (
     inputs: { title: string; slug: string; content: string }[]
   ) => Promise<{ error: string | null }>;
+  /** If set, the dialog indicates the new section(s) will be inserted right after this title. */
+  insertAfterTitle?: string | null;
 }
 
 type Mode = 'manual' | 'upload';
@@ -38,6 +40,7 @@ export function AddSectionDialog({
   onOpenChange,
   onCreate,
   onCreateMultiple,
+  insertAfterTitle,
 }: AddSectionDialogProps) {
   const [mode, setMode] = useState<Mode>('manual');
   const [title, setTitle] = useState('');
@@ -167,7 +170,9 @@ export function AddSectionDialog({
           <DialogHeader>
             <DialogTitle>Add a section</DialogTitle>
             <DialogDescription>
-              Create a page manually, or import one or more from a .md or .txt file.
+              {insertAfterTitle
+                ? `Create a page manually, or import from a file. It will be inserted right after "${insertAfterTitle}".`
+                : 'Create a page manually, or import one or more from a .md or .txt file.'}
             </DialogDescription>
           </DialogHeader>
 

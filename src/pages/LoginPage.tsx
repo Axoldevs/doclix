@@ -22,7 +22,7 @@ export default function LoginPage() {
   const [resetLoading, setResetLoading] = useState(false);
 
   if (user) {
-    const from = (location.state as { from?: Location })?.from?.pathname ?? '/';
+    const from = (location.state as { from?: Location })?.from?.pathname ?? '/dashboard';
     navigate(from, { replace: true });
   }
 
@@ -35,7 +35,7 @@ export default function LoginPage() {
     if (error) {
       setError(error);
     } else {
-      navigate('/');
+      navigate('/dashboard');
     }
   }
 
