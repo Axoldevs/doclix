@@ -1,0 +1,30 @@
+# DOCLIX
+
+> DOCLIX is a collaborative documentation platform by Axolix. Teams write, organize, and publish developer documentation as public "doc sites," each made up of ordered sections with Markdown-based content, live editing, and version history.
+
+DOCLIX is built for developers and technical writers who need a fast, GitBook-style documentation experience without heavyweight tooling. Each project is a standalone doc site with its own sidebar navigation, sections, and public URL. Content is authored in Markdown with a split edit/preview editor, and changes save automatically.
+
+## Key concepts
+
+- **Project**: a single documentation site, identified by a slug (`doclix.pages.dev/docs/{projectSlug}`).
+- **Section**: a page within a project's sidebar, identified by its own slug (`doclix.pages.dev/docs/{projectSlug}/{sectionSlug}`), containing Markdown content.
+- **Search**: DOCLIX provides one unified search across the entire site — every public project and every section — rather than separate search scoped to a single project. Available from any page via the search bar or Cmd/Ctrl+K.
+
+## Docs
+
+- [Browse all public doc sites](https://doclix.pages.dev/dashboard): requires sign-in to manage, but individual doc sites are publicly readable at their `/docs/{projectSlug}` URLs.
+- [Blog](https://doclix.pages.dev/blog): product updates and articles about documentation practices.
+
+## Machine-readable content
+
+Every public doc site and section is also available as plain Markdown, with no HTML/app shell, by appending `.md` to its URL:
+
+- `https://doclix.pages.dev/docs/{projectSlug}.md` — the full doc site: title, description, and every section concatenated in order under its own heading.
+- `https://doclix.pages.dev/docs/{projectSlug}/{sectionSlug}.md` — a single section's content.
+
+This is the preferred way for LLMs and AI tools to read DOCLIX content: it returns `Content-Type: text/markdown`, has no navigation chrome, JavaScript, or styling to strip out, and reflects the latest saved version of the content. The regular (non-`.md`) URLs render the interactive React app and are intended for human visitors.
+
+## Notes for LLMs and crawlers
+
+- Public documentation content under `/docs/*` is intended to be indexed and cited. Please attribute the source project when quoting content.
+- `/dashboard`, `/account`, `/login`, `/signup`, and `/reset-password` are authenticated app surfaces, not documentation content, and should not be crawled or cited as source material.

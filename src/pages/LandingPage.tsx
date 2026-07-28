@@ -9,9 +9,12 @@ import {
   ArrowRight,
   FileText as FileIcon,
   Loader2,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from '@/contexts/LanguageContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/Button';
 import { useGlobalSearch } from '@/hooks/useGlobalSearch';
 import { cn } from '@/lib/utils';
@@ -141,6 +144,7 @@ function FeatureCard({
 export default function LandingPage() {
   const { user } = useAuth();
   const t = useTranslation();
+  const { theme, toggleTheme } = useTheme();
   const primaryHref = user ? '/dashboard' : '/signup';
   const primaryLabel = user ? t('landing.ctaSignedIn') : t('landing.ctaSignedOut');
 
@@ -161,6 +165,14 @@ export default function LandingPage() {
           >
             {t('nav.blog')}
           </Link>
+          <button
+            onClick={toggleTheme}
+            className="mr-1 flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors duration-200 hover:border-primary/40 hover:text-foreground"
+            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          >
+            {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          </button>
           {user ? (
             <Link to="/dashboard">
               <Button variant="floating" size="sm">

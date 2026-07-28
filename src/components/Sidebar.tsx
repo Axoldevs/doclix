@@ -26,6 +26,9 @@ import {
   CornerDownRight,
   Copy,
   Trash2,
+  ArrowUp,
+  ArrowDown,
+  FolderInput,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Project, Section } from '@/types/database';
@@ -42,6 +45,11 @@ interface SidebarProps {
   onInsertAfter?: (section: Section) => void;
   onDuplicate?: (section: Section) => void;
   onDeleteSection?: (section: Section) => void;
+  onMoveUp?: (section: Section) => void;
+  onMoveDown?: (section: Section) => void;
+  onDuplicateToProject?: (section: Section) => void;
+  isFirst?: (section: Section) => boolean;
+  isLast?: (section: Section) => boolean;
 }
 
 function SectionMenu({
@@ -49,11 +57,21 @@ function SectionMenu({
   onInsertAfter,
   onDuplicate,
   onDelete,
+  onMoveUp,
+  onMoveDown,
+  onDuplicateToProject,
+  disableMoveUp,
+  disableMoveDown,
 }: {
   section: Section;
   onInsertAfter?: (section: Section) => void;
   onDuplicate?: (section: Section) => void;
   onDelete?: (section: Section) => void;
+  onMoveUp?: (section: Section) => void;
+  onMoveDown?: (section: Section) => void;
+  onDuplicateToProject?: (section: Section) => void;
+  disableMoveUp?: boolean;
+  disableMoveDown?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -85,7 +103,32 @@ function SectionMenu({
         <MoreVertical className="h-3.5 w-3.5" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-20 mt-1 w-44 overflow-hidden rounded-lg border border-border bg-card py-1 shadow-xl">
+        <div className="absolute right-0 top-full z-20 mt-1 w-52 overflow-hidden rounded-lg border border-border bg-card py-1 shadow-xl">
+          <button
+            type="button"
+            disabled={disableMoveUp}
+            onClick={() => {
+              setOpen(false);
+              onMoveUp?.(section);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-foreground hover:bg-secondary disabled:opacity-30 disabled:hover:bg-transparent"
+          >
+            <ArrowUp className="h-3.5 w-3.5" />
+            Move up
+          </button>
+          <button
+            type="button"
+            disabled={disableMoveDown}
+            onClick={() => {
+              setOpen(false);
+              onMoveDown?.(section);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-foreground hover:bg-secondary disabled:opacity-30 disabled:hover:bg-transparent"
+          >
+            <ArrowDown className="h-3.5 w-3.5" />
+            Move down
+          </button>
+          <div className="my-1 h-px bg-border" />
           <button
             type="button"
             onClick={() => {
@@ -112,6 +155,18 @@ function SectionMenu({
             type="button"
             onClick={() => {
               setOpen(false);
+              onDuplicateToProject?.(section);
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-foreground hover:bg-secondary"
+          >
+            <FolderInput className="h-3.5 w-3.5" />
+            Duplicate to project…
+          </button>
+          <div className="my-1 h-px bg-border" />
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
               onDelete?.(section);
             }}
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10"
@@ -134,6 +189,11 @@ function SortableItem({
   onInsertAfter,
   onDuplicate,
   onDelete,
+  onMoveUp,
+  onMoveDown,
+  onDuplicateToProject,
+  disableMoveUp,
+  disableMoveDown,
 }: {
   section: Section;
   projectSlug: string;
@@ -143,6 +203,11 @@ function SortableItem({
   onInsertAfter?: (section: Section) => void;
   onDuplicate?: (section: Section) => void;
   onDelete?: (section: Section) => void;
+  onMoveUp?: (section: Section) => void;
+  onMoveDown?: (section: Section) => void;
+  onDuplicateToProject?: (section: Section) => void;
+  disableMoveUp?: boolean;
+  disableMoveDown?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: section.id,
@@ -185,6 +250,11 @@ function SortableItem({
           onInsertAfter={onInsertAfter}
           onDuplicate={onDuplicate}
           onDelete={onDelete}
+          onMoveUp={onMoveUp}
+          onMoveDown={onMoveDown}
+          onDuplicateToProject={onDuplicateToProject}
+          disableMoveUp={disableMoveUp}
+          disableMoveDown={disableMoveDown}
         />
       )}
     </div>
@@ -202,6 +272,9 @@ export function Sidebar({
   onInsertAfter,
   onDuplicate,
   onDeleteSection,
+  onMoveUp,
+  onMoveDown,
+  onDuplicateToProject,
 }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
@@ -257,6 +330,11 @@ export function Sidebar({
                   onInsertAfter={onInsertAfter}
                   onDuplicate={onDuplicate}
                   onDelete={onDeleteSection}
+                  onMoveUp={onMoveUp}
+                  onMoveDown={onMoveDown}
+                  onDuplicateToProject={onDuplicateToProject}
+                  disableMoveUp={sections.findIndex((s) => s.id === section.id) === 0}
+                  disableMoveDown={sections.findIndex((s) => s.id === section.id) === sections.length - 1}
                 />
               ))}
             </div>

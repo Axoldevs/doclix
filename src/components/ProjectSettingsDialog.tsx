@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Trash2, AlertTriangle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Trash2, AlertTriangle, Save } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,8 @@ import {
 } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
+import { Textarea } from '@/components/ui/Textarea';
 import type { Project, Section } from '@/types/database';
 
 interface ProjectSettingsDialogProps {
@@ -20,15 +22,18 @@ interface ProjectSettingsDialogProps {
   onRenameSection: (id: string, title: string) => Promise<{ error: string | null }>;
   onDeleteSection: (id: string) => Promise<{ error: string | null }>;
   onDeleteProject: () => Promise<{ error: string | null }>;
+  onUpdateProject: (updates: { title?: string; description?: string | null }) => Promise<{ error: string | null }>;
 }
 
 export function ProjectSettingsDialog({
   open,
   onOpenChange,
+  project,
   sections,
   onRenameSection,
   onDeleteSection,
   onDeleteProject,
+  onUpdateProject,
 }: ProjectSettingsDialogProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmDeleteProject, setConfirmDeleteProject] = useState(false);
@@ -36,6 +41,38 @@ export function ProjectSettingsDialog({
   const [editTitle, setEditTitle] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [projectTitle, setProjectTitle] = useState(project.title);
+  const [projectDescription, setProjectDescription] = useState(project.description ?? '');
+  const [savingProject, setSavingProject] = useState(false);
+  const [projectSaved, setProjectSaved] = useState(false);
+
+  const projectDirty = projectTitle !== project.title || projectDescription !== (project.description ?? '');
+
+  useEffect(() => {
+    if (open) {
+      setProjectTitle(project.title);
+      setProjectDescription(project.description ?? '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, project.id]);
+
+  async function handleSaveProject() {
+    if (!projectTitle.trim()) return;
+    setSavingProject(true);
+    setError(null);
+    const { error } = await onUpdateProject({
+      title: projectTitle.trim(),
+      description: projectDescription.trim() || null,
+    });
+    setSavingProject(false);
+    if (error) {
+      setError(error);
+    } else {
+      setProjectSaved(true);
+      setTimeout(() => setProjectSaved(false), 2000);
+    }
+  }
 
   function startEdit(section: Section) {
     setEditingId(section.id);
@@ -80,6 +117,43 @@ export function ProjectSettingsDialog({
           </p>
         )}
 
+        <div className="mb-6 flex flex-col gap-3 rounded-lg border border-border p-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="project-title">Project name</Label>
+            <Input
+              id="project-title"
+              value={projectTitle}
+              onChange={(e) => setProjectTitle(e.target.value)}
+              placeholder="Project name"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="project-description">Description</Label>
+            <Textarea
+              id="project-description"
+              value={projectDescription}
+              onChange={(e) => setProjectDescription(e.target.value)}
+              placeholder="What is this documentation about?"
+              rows={3}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={handleSaveProject}
+              disabled={!projectDirty || !projectTitle.trim()}
+              loading={savingProject}
+            >
+              <Save className="h-3.5 w-3.5" />
+              Save details
+            </Button>
+            {projectSaved && <span className="text-xs text-green-500">Saved</span>}
+          </div>
+        </div>
+
+        <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Sections
+        </div>
         <div className="flex max-h-72 flex-col gap-1 overflow-y-auto scrollbar-thin">
           {sections.map((section) => (
             <div

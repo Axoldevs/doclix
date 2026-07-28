@@ -8,6 +8,40 @@
  * then inline).
  */
 
+export interface HeadingItem {
+  level: 1 | 2 | 3;
+  text: string;
+  id: string;
+}
+
+function slugifyHeading(text: string, seen: Map<string, number>): string {
+  const base = text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-');
+  const count = seen.get(base) ?? 0;
+  seen.set(base, count + 1);
+  return count === 0 ? base : `${base}-${count}`;
+}
+
+export function extractHeadings(source: string): HeadingItem[] {
+  const lines = source.split('\n');
+  const seen = new Map<string, number>();
+  const headings: HeadingItem[] = [];
+
+  for (const line of lines) {
+    const h3 = line.match(/^###\s+(.*)/);
+    const h2 = line.match(/^##\s+(.*)/);
+    const h1 = line.match(/^#\s+(.*)/);
+    if (h3) headings.push({ level: 3, text: h3[1].trim(), id: slugifyHeading(h3[1], seen) });
+    else if (h2) headings.push({ level: 2, text: h2[1].trim(), id: slugifyHeading(h2[1], seen) });
+    else if (h1) headings.push({ level: 1, text: h1[1].trim(), id: slugifyHeading(h1[1], seen) });
+  }
+
+  return headings;
+}
+
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
@@ -49,14 +83,14 @@ function renderInline(text: string): string {
   return out;
 }
 
-function isTableSeparatorRow(line: string): boolean {
+export function isTableSeparatorRow(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed.includes('-') || !trimmed.includes('|')) return false;
   const cells = trimmed.replace(/^\|/, '').replace(/\|$/, '').split('|');
   return cells.length > 0 && cells.every((c) => /^\s*:?-+:?\s*$/.test(c));
 }
 
-function splitTableRow(line: string): string[] {
+export function splitTableRow(line: string): string[] {
   let trimmed = line.trim();
   if (trimmed.startsWith('|')) trimmed = trimmed.slice(1);
   if (trimmed.endsWith('|')) trimmed = trimmed.slice(0, -1);
@@ -70,6 +104,19 @@ export function renderMarkdown(source: string): string {
   const html: string[] = [];
   let i = 0;
   let listBuffer: { type: 'ul' | 'ol'; items: string[] } | null = null;
+  const headingSlugSeen = new Map<string, number>();
+
+  function slugForHeading(text: string): string {
+    const base = text
+      .toLowerCase()
+      .trim()
+      .replace(/&[a-z]+;/g, '')
+      .replace(/[^\w\s-]/g, '')
+      .replace(/\s+/g, '-');
+    const count = headingSlugSeen.get(base) ?? 0;
+    headingSlugSeen.set(base, count + 1);
+    return count === 0 ? base : `${base}-${count}`;
+  }
 
   function flushList() {
     if (!listBuffer) return;
@@ -150,19 +197,19 @@ export function renderMarkdown(source: string): string {
     const h1 = line.match(/^#\s+(.*)/);
     if (h3) {
       flushList();
-      html.push(`<h3>${renderInline(h3[1])}</h3>`);
+      html.push(`<h3 id="${slugForHeading(h3[1])}">${renderInline(h3[1])}</h3>`);
       i++;
       continue;
     }
     if (h2) {
       flushList();
-      html.push(`<h2>${renderInline(h2[1])}</h2>`);
+      html.push(`<h2 id="${slugForHeading(h2[1])}">${renderInline(h2[1])}</h2>`);
       i++;
       continue;
     }
     if (h1) {
       flushList();
-      html.push(`<h1>${renderInline(h1[1])}</h1>`);
+      html.push(`<h1 id="${slugForHeading(h1[1])}">${renderInline(h1[1])}</h1>`);
       i++;
       continue;
     }

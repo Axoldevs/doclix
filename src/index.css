@@ -3,35 +3,70 @@
 @tailwind utilities;
 
 @layer base {
+  /* Light theme: crisp, professional light-blue surfaces with a
+     deep navy accent — reads as corporate/technical rather than playful. */
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --primary: 210 90% 42%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 30% 94%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 30% 95%;
+    --muted-foreground: 215 16% 42%;
+
+    --accent: 199 89% 42%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 25% 88%;
+    --input: 214 25% 88%;
+    --ring: 210 90% 42%;
+
+    --radius: 10px;
+
+    --teal: 187 72% 38%;
+  }
+
+  /* Dark theme: the darkest dark (near-black navy) with a bright,
+     professional light-blue accent for contrast and legibility. */
   :root.dark {
-    --background: 228 20% 8%;
-    --foreground: 210 20% 94%;
+    --background: 222 47% 5%;
+    --foreground: 210 30% 96%;
 
-    --card: 228 18% 11%;
-    --card-foreground: 210 20% 94%;
+    --card: 222 40% 7%;
+    --card-foreground: 210 30% 96%;
 
-    --primary: 252 95% 68%;
-    --primary-foreground: 228 20% 8%;
+    --primary: 205 90% 60%;
+    --primary-foreground: 222 47% 6%;
 
-    --secondary: 228 14% 16%;
-    --secondary-foreground: 210 20% 94%;
+    --secondary: 222 30% 12%;
+    --secondary-foreground: 210 30% 96%;
 
-    --muted: 228 14% 15%;
-    --muted-foreground: 218 10% 62%;
+    --muted: 222 30% 11%;
+    --muted-foreground: 215 16% 62%;
 
-    --accent: 252 95% 68%;
-    --accent-foreground: 228 20% 8%;
+    --accent: 199 89% 58%;
+    --accent-foreground: 222 47% 6%;
 
     --destructive: 0 72% 58%;
     --destructive-foreground: 210 20% 96%;
 
-    --border: 228 14% 18%;
-    --input: 228 14% 18%;
-    --ring: 252 95% 68%;
+    --border: 222 25% 15%;
+    --input: 222 25% 15%;
+    --ring: 205 90% 60%;
 
     --radius: 10px;
 
-    --teal: 172 66% 62%;
+    --teal: 187 72% 55%;
   }
 }
 

@@ -55,13 +55,16 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center gap-2 text-center">
+        <Link
+          to="/"
+          className="mb-8 flex flex-col items-center gap-2 text-center transition-opacity duration-150 hover:opacity-80"
+        >
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/15">
             <BookOpen className="h-5 w-5 text-primary" />
           </div>
           <h1 className="text-xl font-semibold">Welcome back</h1>
           <p className="text-sm text-muted-foreground">Sign in to continue to DOCLIX</p>
-        </div>
+        </Link>
 
         {mode === 'signin' ? (
           <>

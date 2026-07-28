@@ -1,11 +1,24 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DOCLIX — Collaborative Documentation</title>
     <meta name="description" content="Build and maintain structured documentation projects, wikis, and knowledge bases." />
+    <script>
+      // Applied before React hydrates so there is no flash of the wrong
+      // theme. Mirrors the default/storage logic in ThemeContext.tsx.
+      (function () {
+        try {
+          var stored = localStorage.getItem('doclix-theme');
+          var theme = stored === 'light' || stored === 'dark' ? stored : 'dark';
+          if (theme === 'dark') document.documentElement.classList.add('dark');
+        } catch (e) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
   <body class="bg-background text-foreground antialiased">
     <div id="root"></div>

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { BookOpen, Loader2, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -46,13 +46,16 @@ export default function ResetPasswordPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center gap-2 text-center">
+        <Link
+          to="/"
+          className="mb-8 flex flex-col items-center gap-2 text-center transition-opacity duration-150 hover:opacity-80"
+        >
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/15">
             <BookOpen className="h-5 w-5 text-primary" />
           </div>
           <h1 className="text-xl font-semibold">Set a new password</h1>
           <p className="text-sm text-muted-foreground">Choose a new password for your account</p>
-        </div>
+        </Link>
 
         <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
           {done ? (

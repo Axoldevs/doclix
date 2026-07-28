@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { initSupabase } from './lib/supabase';
 import './index.css';
 
@@ -38,11 +39,13 @@ initSupabase()
     root.render(
       <React.StrictMode>
         <BrowserRouter>
-          <AuthProvider>
-            <LanguageProvider>
-              <App />
-            </LanguageProvider>
-          </AuthProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <LanguageProvider>
+                <App />
+              </LanguageProvider>
+            </AuthProvider>
+          </ThemeProvider>
         </BrowserRouter>
       </React.StrictMode>
     );

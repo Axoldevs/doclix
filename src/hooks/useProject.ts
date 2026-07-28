@@ -34,5 +34,22 @@ export function useProject(slug: string | undefined) {
     fetchProject();
   }, [fetchProject]);
 
-  return { project, loading, error, notFound, refetch: fetchProject };
+  const updateProject = useCallback(
+    async (updates: { title?: string; description?: string | null; slug?: string }) => {
+      if (!project) return { error: 'No project loaded' };
+      const { data, error } = await getSupabase()
+        .from('projects')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', project.id)
+        .select()
+        .single();
+
+      if (error) return { error: error.message };
+      setProject(data);
+      return { error: null };
+    },
+    [project]
+  );
+
+  return { project, loading, error, notFound, refetch: fetchProject, updateProject };
 }

@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Pencil, Eye, Plus } from 'lucide-react';
+import { Pencil, Eye, Plus, MessageSquare } from 'lucide-react';
 import { ProjectHeader } from '@/components/ProjectHeader';
 import { Sidebar } from '@/components/Sidebar';
 import { SectionFooterNav } from '@/components/SectionFooterNav';
 import { MarkdownEditor } from '@/components/MarkdownEditor';
+import { TocPanel } from '@/components/TocPanel';
+import { CommentsPanel } from '@/components/CommentsPanel';
 import { AddSectionDialog } from '@/components/AddSectionDialog';
 import { ProjectSettingsDialog } from '@/components/ProjectSettingsDialog';
+import { DuplicateToProjectDialog } from '@/components/DuplicateToProjectDialog';
 import { TranslateButton } from '@/components/TranslateButton';
 import { Button } from '@/components/ui/Button';
 import { FullPageSpinner, ErrorBanner, EmptyState } from '@/components/StateViews';
@@ -26,7 +29,13 @@ export default function DocProjectPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
 
-  const { project, loading: projectLoading, error: projectError, notFound } = useProject(projectSlug);
+  const {
+    project,
+    loading: projectLoading,
+    error: projectError,
+    notFound,
+    updateProject,
+  } = useProject(projectSlug);
   const {
     sections,
     loading: sectionsLoading,
@@ -45,6 +54,8 @@ export default function DocProjectPage() {
   const [editing, setEditing] = useState(false);
   const [translatedContent, setTranslatedContent] = useState<string | null>(null);
   const [insertAfterSection, setInsertAfterSection] = useState<Section | null>(null);
+  const [duplicateToProjectSection, setDuplicateToProjectSection] = useState<Section | null>(null);
+  const [readerCommentsOpen, setReaderCommentsOpen] = useState(false);
 
   const isOwner = Boolean(user && project && user.id === project.owner_id);
 
@@ -167,6 +178,28 @@ export default function DocProjectPage() {
     });
   }
 
+  function handleMoveUp(section: Section) {
+    const idx = sections.findIndex((s) => s.id === section.id);
+    if (idx <= 0) return;
+    const reordered = [...sections];
+    [reordered[idx - 1], reordered[idx]] = [reordered[idx], reordered[idx - 1]];
+    reorderSections(reordered.map((s) => s.id));
+  }
+
+  function handleMoveDown(section: Section) {
+    const idx = sections.findIndex((s) => s.id === section.id);
+    if (idx === -1 || idx >= sections.length - 1) return;
+    const reordered = [...sections];
+    [reordered[idx], reordered[idx + 1]] = [reordered[idx + 1], reordered[idx]];
+    reorderSections(reordered.map((s) => s.id));
+  }
+
+  async function handleUpdateProject(updates: { title?: string; description?: string | null }) {
+    const { error } = await updateProject(updates);
+    if (!error) showToast('Project details updated', 'success');
+    return { error };
+  }
+
   async function handleCreateMultipleSections(
     inputs: { title: string; slug: string; content: string }[]
   ) {
@@ -240,6 +273,9 @@ export default function DocProjectPage() {
           onInsertAfter={handleRequestInsertAfter}
           onDuplicate={handleDuplicateSection}
           onDeleteSection={handleRequestDelete}
+          onMoveUp={handleMoveUp}
+          onMoveDown={handleMoveDown}
+          onDuplicateToProject={setDuplicateToProjectSection}
         />
 
         <div className="flex flex-1 flex-col overflow-hidden">
@@ -295,6 +331,16 @@ export default function DocProjectPage() {
                           onTranslated={setTranslatedContent}
                         />
                       )}
+                      {!editing && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setReaderCommentsOpen((prev) => !prev)}
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          Comments
+                        </Button>
+                      )}
                       {isOwner && (
                         <Button
                           variant="outline"
@@ -323,18 +369,33 @@ export default function DocProjectPage() {
                         key={activeSection.id}
                         initialContent={activeSection.content}
                         onSave={handleSaveContent}
+                        sectionId={activeSection.id}
+                        isOwner={isOwner}
                       />
                     </div>
                   ) : (
-                    <div
-                      className="doclix-prose flex-1"
-                      data-no-translate
-                      dangerouslySetInnerHTML={{
-                        __html:
-                          renderMarkdown(translatedContent ?? activeSection.content) ||
-                          '<p class="text-muted-foreground">This section has no content yet.</p>',
-                      }}
-                    />
+                    <div className="flex flex-1 gap-4 overflow-hidden">
+                      <div className="flex-1 overflow-y-auto scrollbar-thin">
+                        <TocPanel content={translatedContent ?? activeSection.content} className="mb-4" />
+                        <div
+                          className="doclix-prose"
+                          data-no-translate
+                          dangerouslySetInnerHTML={{
+                            __html:
+                              renderMarkdown(translatedContent ?? activeSection.content) ||
+                              '<p class="text-muted-foreground">This section has no content yet.</p>',
+                          }}
+                        />
+                      </div>
+                      {readerCommentsOpen && (
+                        <CommentsPanel
+                          open={readerCommentsOpen}
+                          onClose={() => setReaderCommentsOpen(false)}
+                          sectionId={activeSection.id}
+                          isOwner={isOwner}
+                        />
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -370,6 +431,19 @@ export default function DocProjectPage() {
         onRenameSection={handleRenameSection}
         onDeleteSection={handleDeleteSection}
         onDeleteProject={handleDeleteProject}
+        onUpdateProject={handleUpdateProject}
+      />
+
+      <DuplicateToProjectDialog
+        open={!!duplicateToProjectSection}
+        onOpenChange={(open) => {
+          if (!open) setDuplicateToProjectSection(null);
+        }}
+        section={duplicateToProjectSection}
+        currentProjectId={project.id}
+        onDuplicated={(targetProject) => {
+          showToast(`Duplicated into "${targetProject.title}"`, 'success');
+        }}
       />
     </div>
   );

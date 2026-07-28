@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, LogOut, LayoutGrid, Search, UserCircle } from 'lucide-react';
+import { BookOpen, LogOut, LayoutGrid, Search, UserCircle, Moon, Sun } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from '@/contexts/LanguageContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/Button';
 import { GlobalSearchDialog } from '@/components/GlobalSearchDialog';
 
 export function ProjectHeader({ title }: { title?: string }) {
   const { user, signOut } = useAuth();
   const t = useTranslation();
+  const { theme, toggleTheme } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
@@ -38,6 +40,14 @@ export function ProjectHeader({ title }: { title?: string }) {
       </Link>
 
       <div className="flex items-center gap-2">
+        <button
+          onClick={toggleTheme}
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors duration-200 hover:border-primary/40 hover:text-foreground"
+          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+        >
+          {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+        </button>
         <button
           onClick={() => setSearchOpen(true)}
           className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-muted-foreground transition-colors duration-200 hover:border-primary/40 hover:text-foreground"

@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
 import {
   Bold,
   Italic,
@@ -24,6 +32,12 @@ import {
   AlertCircle,
   Upload,
   ImagePlus,
+  Code2,
+  History,
+  MessageSquare,
+  Rows3,
+  Columns3,
+  RowsIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { renderMarkdown } from '@/lib/markdown';
@@ -33,6 +47,14 @@ import { buildImportPreview, isSupportedImportFile, FileImportError } from '@/li
 import { useToast } from '@/contexts/ToastContext';
 import { LinkDialog } from '@/components/LinkDialog';
 import { TableDialog } from '@/components/TableDialog';
+import { ImageDialog } from '@/components/ImageDialog';
+import { CodeBlockDialog } from '@/components/CodeBlockDialog';
+import { HistoryDialog } from '@/components/HistoryDialog';
+import { CommentsPanel } from '@/components/CommentsPanel';
+import { TocPanel } from '@/components/TocPanel';
+import { SlashMenu, filterSlashCommands, type SlashCommand } from '@/components/SlashMenu';
+import { getCaretCoordinates } from '@/lib/caretCoordinates';
+import { addTableRow, removeTableRow, addTableColumn, removeTableColumn, findTableAtCursor } from '@/lib/tableOps';
 
 type ViewMode = 'edit' | 'split' | 'preview';
 
@@ -40,21 +62,24 @@ interface MarkdownEditorProps {
   initialContent: string;
   onSave: (content: string) => Promise<{ error: string | null }>;
   readOnly?: boolean;
+  sectionId?: string;
+  isOwner?: boolean;
 }
 
-function wrapSelection(
-  textarea: HTMLTextAreaElement,
-  before: string,
-  after: string = before
-) {
+interface Transform {
+  newValue: string;
+  cursorStart: number;
+  cursorEnd: number;
+}
+
+function wrapSelection(textarea: HTMLTextAreaElement, before: string, after: string = before): Transform {
   const { selectionStart, selectionEnd, value } = textarea;
   const selected = value.slice(selectionStart, selectionEnd);
-  const newValue =
-    value.slice(0, selectionStart) + before + selected + after + value.slice(selectionEnd);
+  const newValue = value.slice(0, selectionStart) + before + selected + after + value.slice(selectionEnd);
   return { newValue, cursorStart: selectionStart + before.length, cursorEnd: selectionEnd + before.length };
 }
 
-function prefixLines(textarea: HTMLTextAreaElement, prefix: string) {
+function prefixLines(textarea: HTMLTextAreaElement, prefix: string): Transform {
   const { selectionStart, selectionEnd, value } = textarea;
   const lineStart = value.lastIndexOf('\n', selectionStart - 1) + 1;
   let lineEnd = value.indexOf('\n', selectionEnd);
@@ -70,7 +95,7 @@ function prefixLines(textarea: HTMLTextAreaElement, prefix: string) {
   return { newValue, cursorStart: lineStart, cursorEnd: lineStart + prefixed.length };
 }
 
-function insertBlockAtCursor(textarea: HTMLTextAreaElement, block: string) {
+function insertBlockAtCursor(textarea: HTMLTextAreaElement, block: string): Transform {
   const { selectionStart, selectionEnd, value } = textarea;
   const before = value.slice(0, selectionStart);
   const after = value.slice(selectionEnd);
@@ -96,10 +121,18 @@ function saveStatusLabel(status: SaveStatus) {
   }
 }
 
-export function MarkdownEditor({ initialContent, onSave, readOnly }: MarkdownEditorProps) {
+interface SlashState {
+  lineStart: number;
+  query: string;
+  top: number;
+  left: number;
+}
+
+export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, isOwner }: MarkdownEditorProps) {
   const { value, setValue, undo, redo, reset, canUndo, canRedo } = useHistory(initialContent);
   const [viewMode, setViewMode] = useState<ViewMode>(readOnly ? 'preview' : 'split');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorWrapRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showToast } = useToast();
   const { status, saveNow } = useAutoSave(value, onSave);
@@ -107,14 +140,38 @@ export function MarkdownEditor({ initialContent, onSave, readOnly }: MarkdownEdi
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [linkInitialText, setLinkInitialText] = useState('');
   const [tableDialogOpen, setTableDialogOpen] = useState(false);
+  const [imageDialogOpen, setImageDialogOpen] = useState(false);
+  const [codeDialogOpen, setCodeDialogOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+
+  const [slashState, setSlashState] = useState<SlashState | null>(null);
+  const [slashActiveIndex, setSlashActiveIndex] = useState(0);
+  const [tableContext, setTableContext] = useState(false);
 
   useEffect(() => {
     reset(initialContent);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialContent]);
 
+  useEffect(() => {
+    setSlashActiveIndex(0);
+  }, [slashState?.query]);
+
+  // Close the slash menu on outside clicks.
+  useEffect(() => {
+    if (!slashState) return;
+    function handleClick(e: MouseEvent) {
+      if (editorWrapRef.current && !editorWrapRef.current.contains(e.target as Node)) {
+        setSlashState(null);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [slashState]);
+
   const applyTransform = useCallback(
-    (transform: (ta: HTMLTextAreaElement) => { newValue: string; cursorStart: number; cursorEnd: number }) => {
+    (transform: (ta: HTMLTextAreaElement) => Transform) => {
       const ta = textareaRef.current;
       if (!ta) return;
       const { newValue, cursorStart, cursorEnd } = transform(ta);
@@ -122,10 +179,29 @@ export function MarkdownEditor({ initialContent, onSave, readOnly }: MarkdownEdi
       requestAnimationFrame(() => {
         ta.focus();
         ta.setSelectionRange(cursorStart, cursorEnd);
+        updateTableContext(ta);
       });
     },
     [setValue]
   );
+
+  function updateTableContext(ta: HTMLTextAreaElement) {
+    setTableContext(!!findTableAtCursor(ta.value, ta.selectionStart));
+  }
+
+  function updateSlashState(ta: HTMLTextAreaElement) {
+    const pos = ta.selectionStart;
+    const val = ta.value;
+    const lineStart = val.lastIndexOf('\n', pos - 1) + 1;
+    const linePrefix = val.slice(lineStart, pos);
+    const match = linePrefix.match(/^\/([a-zA-Z0-9]*)$/);
+    if (match) {
+      const coords = getCaretCoordinates(ta, pos);
+      setSlashState({ lineStart, query: match[1], top: coords.top + coords.height + 4, left: coords.left });
+    } else {
+      setSlashState(null);
+    }
+  }
 
   const handleFileUpload = useCallback(
     async (file: File) => {
@@ -178,14 +254,172 @@ export function MarkdownEditor({ initialContent, onSave, readOnly }: MarkdownEdi
     applyTransform((ta) => insertBlockAtCursor(ta, markdown));
   }
 
-  function handleImageInsert() {
-    applyTransform((ta) => wrapSelection(ta, '![', '](image-url)'));
+  function handleImageConfirm(alt: string, url: string) {
+    applyTransform((ta) => {
+      const { selectionStart, selectionEnd, value: v } = ta;
+      const markdown = `![${alt}](${url})`;
+      const newValue = v.slice(0, selectionStart) + markdown + v.slice(selectionEnd);
+      const cursorPos = selectionStart + markdown.length;
+      return { newValue, cursorStart: cursorPos, cursorEnd: cursorPos };
+    });
   }
+
+  function handleCodeConfirm(language: string) {
+    applyTransform((ta) => insertBlockAtCursor(ta, `\`\`\`${language}\n\n\`\`\``));
+  }
+
+  async function handleRestoreRevision(content: string) {
+    reset(content);
+    const { error } = await onSave(content);
+    if (error) showToast(`Could not restore version: ${error}`, 'error');
+    else showToast('Restored previous version', 'success');
+  }
+
+  function handleTableOp(op: (val: string, pos: number) => { newValue: string; cursorPos: number } | null) {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const result = op(ta.value, ta.selectionStart);
+    if (!result) return;
+    setValue(result.newValue);
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(result.cursorPos, result.cursorPos);
+      updateTableContext(ta);
+    });
+  }
+
+  function handleSlashSelect(command: SlashCommand) {
+    if (!slashState) return;
+    const { lineStart } = slashState;
+    setSlashState(null);
+
+    const simplePrefix: Record<string, string> = {
+      h1: '# ',
+      h2: '## ',
+      h3: '### ',
+      bullet: '- ',
+      numbered: '1. ',
+      quote: '> ',
+    };
+
+    if (command.id in simplePrefix) {
+      applyTransform((ta) => {
+        const { value: v, selectionStart } = ta;
+        const prefix = simplePrefix[command.id];
+        const newValue = v.slice(0, lineStart) + prefix + v.slice(selectionStart);
+        const pos = lineStart + prefix.length;
+        return { newValue, cursorStart: pos, cursorEnd: pos };
+      });
+      return;
+    }
+
+    if (command.id === 'divider') {
+      applyTransform((ta) => {
+        const { value: v, selectionStart } = ta;
+        const newValue = v.slice(0, lineStart) + '---\n' + v.slice(selectionStart);
+        const pos = lineStart + 4;
+        return { newValue, cursorStart: pos, cursorEnd: pos };
+      });
+      return;
+    }
+
+    // For table/code/link/image: remove the trigger text, then open the dialog.
+    applyTransform((ta) => {
+      const { value: v, selectionStart } = ta;
+      const newValue = v.slice(0, lineStart) + v.slice(selectionStart);
+      return { newValue, cursorStart: lineStart, cursorEnd: lineStart };
+    });
+
+    if (command.id === 'table') setTableDialogOpen(true);
+    else if (command.id === 'code') setCodeDialogOpen(true);
+    else if (command.id === 'link') {
+      setLinkInitialText('');
+      setLinkDialogOpen(true);
+    } else if (command.id === 'image') setImageDialogOpen(true);
+  }
+
+  const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    setValue(e.target.value);
+    updateSlashState(e.target);
+    updateTableContext(e.target);
+  };
+
+  const handleClickOrKeyUp = (e: ReactMouseEvent<HTMLTextAreaElement> | KeyboardEvent<HTMLTextAreaElement>) => {
+    const ta = e.currentTarget as HTMLTextAreaElement;
+    updateTableContext(ta);
+  };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     const mod = e.metaKey || e.ctrlKey;
 
-    if (e.key === 'Tab' && !mod) {
+    // Slash menu keyboard navigation takes priority.
+    if (slashState) {
+      const results = filterSlashCommands(slashState.query);
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSlashActiveIndex((i) => (i + 1) % Math.max(results.length, 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSlashActiveIndex((i) => (i - 1 + results.length) % Math.max(results.length, 1));
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        const chosen = results[slashActiveIndex];
+        if (chosen) handleSlashSelect(chosen);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setSlashState(null);
+        return;
+      }
+    }
+
+    // List / quote auto-continue on Enter.
+    if (e.key === 'Enter' && !mod && !e.shiftKey) {
+      const ta = e.currentTarget;
+      const { selectionStart, selectionEnd, value: v } = ta;
+      const lineStart = v.lastIndexOf('\n', selectionStart - 1) + 1;
+      const lineUpToCursor = v.slice(lineStart, selectionStart);
+
+      const bulletMatch = lineUpToCursor.match(/^(\s*)([-*])\s+/);
+      const numberedMatch = lineUpToCursor.match(/^(\s*)(\d+)\.\s+/);
+      const quoteMatch = lineUpToCursor.match(/^(\s*)>\s?/);
+      const match = bulletMatch || numberedMatch || quoteMatch;
+
+      if (match) {
+        e.preventDefault();
+        const isEmptyItem = lineUpToCursor.trim() === match[0].trim() && selectionStart === selectionEnd;
+
+        if (isEmptyItem) {
+          // Exit the list: strip the marker and just start a plain new line.
+          applyTransform((taInner) => {
+            const { value: vv } = taInner;
+            const newValue = vv.slice(0, lineStart) + vv.slice(selectionStart);
+            return { newValue, cursorStart: lineStart, cursorEnd: lineStart };
+          });
+          return;
+        }
+
+        let continuation = '';
+        if (bulletMatch) continuation = `${bulletMatch[1]}${bulletMatch[2]} `;
+        else if (numberedMatch) continuation = `${numberedMatch[1]}${Number(numberedMatch[2]) + 1}. `;
+        else if (quoteMatch) continuation = `${quoteMatch[1]}> `;
+
+        applyTransform((taInner) => {
+          const { value: vv, selectionStart: s, selectionEnd: en } = taInner;
+          const newValue = vv.slice(0, s) + '\n' + continuation + vv.slice(en);
+          const pos = s + 1 + continuation.length;
+          return { newValue, cursorStart: pos, cursorEnd: pos };
+        });
+        return;
+      }
+    }
+
+    if (e.key === 'Tab' && !mod && !slashState) {
       e.preventDefault();
       applyTransform((ta) => {
         const { selectionStart, selectionEnd, value: v } = ta;
@@ -248,175 +482,255 @@ export function MarkdownEditor({ initialContent, onSave, readOnly }: MarkdownEdi
 
   const insertButtons = [
     { icon: Link2, label: 'Link (Ctrl+K)', action: openLinkDialog },
-    { icon: ImagePlus, label: 'Image', action: handleImageInsert },
+    { icon: ImagePlus, label: 'Image', action: () => setImageDialogOpen(true) },
     { icon: Table2, label: 'Table', action: () => setTableDialogOpen(true) },
+    { icon: Code2, label: 'Code block', action: () => setCodeDialogOpen(true) },
+  ];
+
+  const tableToolButtons = [
+    { icon: Rows3, label: 'Add row', action: () => handleTableOp(addTableRow) },
+    { icon: RowsIcon, label: 'Remove row', action: () => handleTableOp(removeTableRow) },
+    { icon: Columns3, label: 'Add column', action: () => handleTableOp(addTableColumn) },
+    { icon: Columns2, label: 'Remove column', action: () => handleTableOp(removeTableColumn) },
   ];
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card">
-      {!readOnly && (
-        <div className="flex flex-wrap items-center gap-1 border-b border-border px-2 py-1.5">
-          {headingButtons.map(({ icon: Icon, label, action }) => (
+    <div className="flex h-full overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {!readOnly && (
+          <div className="flex flex-wrap items-center gap-1 border-b border-border px-2 py-1.5">
+            {headingButtons.map(({ icon: Icon, label, action }) => (
+              <button
+                key={label}
+                type="button"
+                title={label}
+                onClick={action}
+                className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
+              >
+                <Icon className="h-4 w-4" />
+              </button>
+            ))}
+
+            <div className="mx-1 h-5 w-px bg-border" />
+
+            {formatButtons.map(({ icon: Icon, label, action }) => (
+              <button
+                key={label}
+                type="button"
+                title={label}
+                onClick={action}
+                className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
+              >
+                <Icon className="h-4 w-4" />
+              </button>
+            ))}
+
+            <div className="mx-1 h-5 w-px bg-border" />
+
+            {blockButtons.map(({ icon: Icon, label, action }) => (
+              <button
+                key={label}
+                type="button"
+                title={label}
+                onClick={action}
+                className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
+              >
+                <Icon className="h-4 w-4" />
+              </button>
+            ))}
+
+            <div className="mx-1 h-5 w-px bg-border" />
+
+            {insertButtons.map(({ icon: Icon, label, action }) => (
+              <button
+                key={label}
+                type="button"
+                title={label}
+                onClick={action}
+                className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
+              >
+                <Icon className="h-4 w-4" />
+              </button>
+            ))}
+
+            {tableContext && (
+              <>
+                <div className="mx-1 h-5 w-px bg-border" />
+                {tableToolButtons.map(({ icon: Icon, label, action }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    title={label}
+                    onClick={action}
+                    className="rounded-md p-1.5 text-primary transition-colors duration-200 hover:bg-primary/10"
+                  >
+                    <Icon className="h-4 w-4" />
+                  </button>
+                ))}
+              </>
+            )}
+
+            <div className="mx-1 h-5 w-px bg-border" />
+
             <button
-              key={label}
               type="button"
-              title={label}
-              onClick={action}
+              title="Import .md or .txt file (replaces current content)"
+              onClick={() => fileInputRef.current?.click()}
               className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
             >
-              <Icon className="h-4 w-4" />
+              <Upload className="h-4 w-4" />
             </button>
-          ))}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".md,.markdown,.txt,text/markdown,text/plain"
+              className="hidden"
+              onChange={handleFileInputChange}
+            />
 
-          <div className="mx-1 h-5 w-px bg-border" />
+            <div className="mx-1 h-5 w-px bg-border" />
 
-          {formatButtons.map(({ icon: Icon, label, action }) => (
             <button
-              key={label}
               type="button"
-              title={label}
-              onClick={action}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
+              title="Undo (Ctrl+Z)"
+              disabled={!canUndo}
+              onClick={undo}
+              className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground disabled:opacity-30"
             >
-              <Icon className="h-4 w-4" />
+              <Undo2 className="h-4 w-4" />
             </button>
-          ))}
-
-          <div className="mx-1 h-5 w-px bg-border" />
-
-          {blockButtons.map(({ icon: Icon, label, action }) => (
             <button
-              key={label}
               type="button"
-              title={label}
-              onClick={action}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
+              title="Redo (Ctrl+Shift+Z)"
+              disabled={!canRedo}
+              onClick={redo}
+              className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground disabled:opacity-30"
             >
-              <Icon className="h-4 w-4" />
+              <Redo2 className="h-4 w-4" />
             </button>
-          ))}
 
-          <div className="mx-1 h-5 w-px bg-border" />
-
-          {insertButtons.map(({ icon: Icon, label, action }) => (
-            <button
-              key={label}
-              type="button"
-              title={label}
-              onClick={action}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
-            >
-              <Icon className="h-4 w-4" />
-            </button>
-          ))}
-
-          <div className="mx-1 h-5 w-px bg-border" />
-
-          <button
-            type="button"
-            title="Import .md or .txt file (replaces current content)"
-            onClick={() => fileInputRef.current?.click()}
-            className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
-          >
-            <Upload className="h-4 w-4" />
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".md,.markdown,.txt,text/markdown,text/plain"
-            className="hidden"
-            onChange={handleFileInputChange}
-          />
-
-          <div className="mx-1 h-5 w-px bg-border" />
-
-          <button
-            type="button"
-            title="Undo (Ctrl+Z)"
-            disabled={!canUndo}
-            onClick={undo}
-            className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground disabled:opacity-30"
-          >
-            <Undo2 className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            title="Redo (Ctrl+Shift+Z)"
-            disabled={!canRedo}
-            onClick={redo}
-            className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground disabled:opacity-30"
-          >
-            <Redo2 className="h-4 w-4" />
-          </button>
-
-          <div className="ml-auto flex items-center gap-1">
-            <div className="mr-2 flex items-center gap-1.5 text-xs">
-              <StatusIcon className={cn('h-3.5 w-3.5', statusInfo.className, statusInfo.spin && 'animate-spin')} />
-              <span className={statusInfo.className}>{statusInfo.text}</span>
-            </div>
-
-            <div className="flex items-center rounded-md border border-border p-0.5">
+            {sectionId && (
               <button
                 type="button"
-                title="Edit only"
-                onClick={() => setViewMode('edit')}
-                className={cn(
-                  'rounded p-1.5 transition-colors duration-200',
-                  viewMode === 'edit' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
-                )}
+                title="Version history"
+                onClick={() => setHistoryOpen(true)}
+                className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
               >
-                <Pencil className="h-3.5 w-3.5" />
+                <History className="h-4 w-4" />
               </button>
-              <button
-                type="button"
-                title="Split view"
-                onClick={() => setViewMode('split')}
-                className={cn(
-                  'rounded p-1.5 transition-colors duration-200',
-                  viewMode === 'split' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <Columns2 className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                title="Preview only"
-                onClick={() => setViewMode('preview')}
-                className={cn(
-                  'rounded p-1.5 transition-colors duration-200',
-                  viewMode === 'preview' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <Eye className="h-3.5 w-3.5" />
-              </button>
+            )}
+
+            <div className="ml-auto flex items-center gap-1">
+              {sectionId && (
+                <button
+                  type="button"
+                  title="Comments"
+                  onClick={() => setCommentsOpen((prev) => !prev)}
+                  className={cn(
+                    'mr-1 rounded-md p-1.5 transition-colors duration-200',
+                    commentsOpen ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                </button>
+              )}
+
+              <div className="mr-2 flex items-center gap-1.5 text-xs">
+                <StatusIcon className={cn('h-3.5 w-3.5', statusInfo.className, statusInfo.spin && 'animate-spin')} />
+                <span className={statusInfo.className}>{statusInfo.text}</span>
+              </div>
+
+              <div className="flex items-center rounded-md border border-border p-0.5">
+                <button
+                  type="button"
+                  title="Edit only"
+                  onClick={() => setViewMode('edit')}
+                  className={cn(
+                    'rounded p-1.5 transition-colors duration-200',
+                    viewMode === 'edit' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  title="Split view"
+                  onClick={() => setViewMode('split')}
+                  className={cn(
+                    'rounded p-1.5 transition-colors duration-200',
+                    viewMode === 'split' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <Columns2 className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  title="Preview only"
+                  onClick={() => setViewMode('preview')}
+                  className={cn(
+                    'rounded p-1.5 transition-colors duration-200',
+                    viewMode === 'preview' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <div className={cn('grid flex-1 overflow-hidden', viewMode === 'split' && 'grid-cols-1 md:grid-cols-2')}>
-        {viewMode !== 'preview' && (
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            readOnly={readOnly}
-            placeholder="Start writing… GitBook-style markdown supported: **bold**, *italic*, `code`, # headings, - lists, tables, and [links](url)"
-            className={cn(
-              'h-full w-full resize-none overflow-y-auto scrollbar-thin bg-transparent p-4 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none',
-              viewMode === 'split' && 'border-r border-border'
-            )}
-            spellCheck={false}
-          />
-        )}
-        {viewMode !== 'edit' && (
-          <div
-            className="doclix-prose h-full overflow-y-auto scrollbar-thin p-4"
-            dangerouslySetInnerHTML={{ __html: renderMarkdown(value) || '<p class="text-muted-foreground">Nothing to preview yet.</p>' }}
-          />
-        )}
+        <div ref={editorWrapRef} className={cn('relative grid flex-1 overflow-hidden', viewMode === 'split' && 'grid-cols-1 md:grid-cols-2')}>
+          {viewMode !== 'preview' && (
+            <div className="relative h-full min-w-0">
+              <textarea
+                ref={textareaRef}
+                value={value}
+                onChange={handleChange}
+                onKeyDown={handleKeyDown}
+                onClick={handleClickOrKeyUp}
+                onKeyUp={handleClickOrKeyUp}
+                readOnly={readOnly}
+                placeholder="Start writing… Type / for commands, or use the toolbar. Supports **bold**, tables, [links](url), and more."
+                className={cn(
+                  'h-full w-full resize-none overflow-y-auto scrollbar-thin bg-transparent p-4 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none',
+                  viewMode === 'split' && 'border-r border-border'
+                )}
+                spellCheck={false}
+              />
+              {slashState && (
+                <SlashMenu
+                  top={slashState.top}
+                  left={slashState.left}
+                  query={slashState.query}
+                  activeIndex={slashActiveIndex}
+                  onSelect={handleSlashSelect}
+                  onHover={setSlashActiveIndex}
+                />
+              )}
+            </div>
+          )}
+          {viewMode !== 'edit' && (
+            <div className="flex h-full min-w-0 flex-col gap-3 overflow-y-auto scrollbar-thin p-4">
+              <TocPanel content={value} />
+              <div
+                className="doclix-prose"
+                dangerouslySetInnerHTML={{
+                  __html: renderMarkdown(value) || '<p class="text-muted-foreground">Nothing to preview yet.</p>',
+                }}
+              />
+            </div>
+          )}
+        </div>
       </div>
+
+      {sectionId && commentsOpen && (
+        <CommentsPanel
+          open={commentsOpen}
+          onClose={() => setCommentsOpen(false)}
+          sectionId={sectionId}
+          isOwner={!!isOwner}
+        />
+      )}
 
       <LinkDialog
         open={linkDialogOpen}
@@ -425,6 +739,17 @@ export function MarkdownEditor({ initialContent, onSave, readOnly }: MarkdownEdi
         onConfirm={handleLinkConfirm}
       />
       <TableDialog open={tableDialogOpen} onOpenChange={setTableDialogOpen} onConfirm={handleTableConfirm} />
+      <ImageDialog open={imageDialogOpen} onOpenChange={setImageDialogOpen} onConfirm={handleImageConfirm} />
+      <CodeBlockDialog open={codeDialogOpen} onOpenChange={setCodeDialogOpen} onConfirm={handleCodeConfirm} />
+      {sectionId && (
+        <HistoryDialog
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+          sectionId={sectionId}
+          currentContent={value}
+          onRestore={handleRestoreRevision}
+        />
+      )}
     </div>
   );
 }
