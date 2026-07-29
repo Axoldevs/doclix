@@ -31,7 +31,8 @@ export default function DashboardPage() {
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10 sm:px-6">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Your projects</h1>
+            <div className="doc-index mb-2">dashboard</div>
+            <h1 className="font-display text-2xl font-semibold tracking-tight">Your projects</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Documentation, wikis, and guides you own.
             </p>
@@ -63,13 +64,13 @@ export default function DashboardPage() {
             {projects.map((project) => (
               <div
                 key={project.id}
-                className="group relative flex flex-col rounded-xl border border-border bg-card p-5 transition-colors duration-200 hover:border-primary/40"
+                className="group relative flex flex-col rounded-lg border border-border bg-card p-5 transition-colors duration-200 hover:border-primary/40"
               >
                 <Link to={`/docs/${project.slug}`} className="flex flex-1 flex-col">
-                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15">
+                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-md border border-primary/25 bg-primary/10">
                     <BookOpen className="h-4 w-4 text-primary" />
                   </div>
-                  <h3 className="font-medium">{project.title}</h3>
+                  <h3 className="font-display font-medium">{project.title}</h3>
                   <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
                     {project.description || 'No description'}
                   </p>

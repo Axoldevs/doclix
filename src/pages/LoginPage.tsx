@@ -59,16 +59,16 @@ export default function LoginPage() {
           to="/"
           className="mb-8 flex flex-col items-center gap-2 text-center transition-opacity duration-150 hover:opacity-80"
         >
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/15">
+          <div className="flex h-11 w-11 items-center justify-center rounded-md border border-primary/30 bg-primary/10">
             <BookOpen className="h-5 w-5 text-primary" />
           </div>
-          <h1 className="text-xl font-semibold">Welcome back</h1>
+          <h1 className="font-display text-xl font-semibold">Welcome back</h1>
           <p className="text-sm text-muted-foreground">Sign in to continue to DOCLIX</p>
         </Link>
 
         {mode === 'signin' ? (
           <>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-sm">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-lg border border-border bg-card p-6 shadow-sm">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -127,10 +127,10 @@ export default function LoginPage() {
             </p>
           </>
         ) : (
-          <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+          <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
             {resetSent ? (
               <div className="flex flex-col gap-4 text-center">
-                <h2 className="text-sm font-semibold">Check your email</h2>
+                <h2 className="font-display text-sm font-semibold">Check your email</h2>
                 <p className="text-sm text-muted-foreground">
                   If an account exists for <span className="font-medium text-foreground">{resetEmail}</span>,
                   we've sent a link to reset your password.
@@ -142,7 +142,7 @@ export default function LoginPage() {
             ) : (
               <form onSubmit={handleResetSubmit} className="flex flex-col gap-4">
                 <div>
-                  <h2 className="text-sm font-semibold">Reset your password</h2>
+                  <h2 className="font-display text-sm font-semibold">Reset your password</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Enter your email and we'll send you a reset link.
                   </p>

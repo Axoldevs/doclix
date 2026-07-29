@@ -3,70 +3,71 @@
 @tailwind utilities;
 
 @layer base {
-  /* Light theme: crisp, professional light-blue surfaces with a
-     deep navy accent — reads as corporate/technical rather than playful. */
+  /* Light theme: warm paper surfaces (not sterile white) with deep
+     ink text and a signal-amber accent — reads like an annotated
+     spec sheet rather than a generic SaaS dashboard. */
   :root {
-    --background: 210 40% 98%;
-    --foreground: 222 47% 11%;
+    --background: 40 30% 97%;
+    --foreground: 220 35% 12%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card: 40 25% 99%;
+    --card-foreground: 220 35% 12%;
 
-    --primary: 210 90% 42%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 32 95% 46%;
+    --primary-foreground: 30 40% 99%;
 
-    --secondary: 210 30% 94%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 40 20% 92%;
+    --secondary-foreground: 220 35% 12%;
 
-    --muted: 210 30% 95%;
-    --muted-foreground: 215 16% 42%;
+    --muted: 40 18% 93%;
+    --muted-foreground: 220 12% 40%;
 
-    --accent: 199 89% 42%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 32 95% 46%;
+    --accent-foreground: 30 40% 99%;
 
-    --destructive: 0 72% 45%;
+    --destructive: 5 72% 45%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 25% 88%;
-    --input: 214 25% 88%;
-    --ring: 210 90% 42%;
+    --border: 36 18% 85%;
+    --input: 36 18% 85%;
+    --ring: 32 95% 46%;
 
-    --radius: 10px;
+    --radius: 6px;
 
-    --teal: 187 72% 38%;
+    --teal: 172 60% 32%;
   }
 
-  /* Dark theme: the darkest dark (near-black navy) with a bright,
-     professional light-blue accent for contrast and legibility. */
+  /* Dark theme: near-black ink background with a warm signal-amber
+     accent, like a terminal or a doc-comment highlight. */
   :root.dark {
-    --background: 222 47% 5%;
-    --foreground: 210 30% 96%;
+    --background: 222 28% 6%;
+    --foreground: 40 20% 94%;
 
-    --card: 222 40% 7%;
-    --card-foreground: 210 30% 96%;
+    --card: 222 24% 8.5%;
+    --card-foreground: 40 20% 94%;
 
-    --primary: 205 90% 60%;
-    --primary-foreground: 222 47% 6%;
+    --primary: 36 96% 58%;
+    --primary-foreground: 222 30% 8%;
 
-    --secondary: 222 30% 12%;
-    --secondary-foreground: 210 30% 96%;
+    --secondary: 222 18% 13%;
+    --secondary-foreground: 40 20% 94%;
 
-    --muted: 222 30% 11%;
-    --muted-foreground: 215 16% 62%;
+    --muted: 222 18% 12%;
+    --muted-foreground: 220 10% 62%;
 
-    --accent: 199 89% 58%;
-    --accent-foreground: 222 47% 6%;
+    --accent: 36 96% 58%;
+    --accent-foreground: 222 30% 8%;
 
-    --destructive: 0 72% 58%;
-    --destructive-foreground: 210 20% 96%;
+    --destructive: 5 78% 62%;
+    --destructive-foreground: 220 20% 8%;
 
-    --border: 222 25% 15%;
-    --input: 222 25% 15%;
-    --ring: 205 90% 60%;
+    --border: 222 16% 17%;
+    --input: 222 16% 17%;
+    --ring: 36 96% 58%;
 
-    --radius: 10px;
+    --radius: 6px;
 
-    --teal: 187 72% 55%;
+    --teal: 172 55% 48%;
   }
 }
 
@@ -105,11 +106,37 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
     font-feature-settings: 'cv11', 'ss01';
+  }
+  h1, h2, h3 {
+    @apply font-display;
   }
   ::selection {
     background-color: hsl(var(--primary) / 0.3);
+  }
+}
+
+@layer utilities {
+  /* Signature structural marker: a doc-comment-style index tag used
+     sparingly as furniture on section headers, cards, and eyebrows —
+     ties the UI's visual language back to the product's subject
+     (structured, indexed documentation). */
+  .doc-index {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: hsl(var(--primary));
+  }
+  .doc-index::before {
+    content: '/**';
+    opacity: 0.5;
+    margin-right: 0.4em;
+  }
+  .doc-bracket {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    color: hsl(var(--muted-foreground));
   }
 }
 
@@ -133,6 +160,7 @@
   line-height: 1.75;
 }
 .doclix-prose h1 {
+  font-family: 'Space Grotesk', Inter, system-ui, sans-serif;
   font-size: 1.875rem;
   font-weight: 700;
   margin-top: 1.5rem;
@@ -140,6 +168,7 @@
   letter-spacing: -0.02em;
 }
 .doclix-prose h2 {
+  font-family: 'Space Grotesk', Inter, system-ui, sans-serif;
   font-size: 1.5rem;
   font-weight: 700;
   margin-top: 1.5rem;
@@ -147,6 +176,7 @@
   letter-spacing: -0.01em;
 }
 .doclix-prose h3 {
+  font-family: 'Space Grotesk', Inter, system-ui, sans-serif;
   font-size: 1.2rem;
   font-weight: 600;
   margin-top: 1.25rem;

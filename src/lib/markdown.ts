@@ -14,6 +14,9 @@ export interface HeadingItem {
   id: string;
 }
 
+// Characters that can be backslash-escaped per standard Markdown.
+const ESCAPABLE_CHARS = '\\`*_{}[]()#+-.!>~|';
+
 function slugifyHeading(text: string, seen: Map<string, number>): string {
   const base = text
     .toLowerCase()
@@ -25,6 +28,21 @@ function slugifyHeading(text: string, seen: Map<string, number>): string {
   return count === 0 ? base : `${base}-${count}`;
 }
 
+function stripEscapes(text: string): string {
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (ch === '\\' && next && ESCAPABLE_CHARS.includes(next)) {
+      out += next;
+      i++;
+    } else {
+      out += ch;
+    }
+  }
+  return out;
+}
+
 export function extractHeadings(source: string): HeadingItem[] {
   const lines = source.split('\n');
   const seen = new Map<string, number>();
@@ -34,12 +52,41 @@ export function extractHeadings(source: string): HeadingItem[] {
     const h3 = line.match(/^###\s+(.*)/);
     const h2 = line.match(/^##\s+(.*)/);
     const h1 = line.match(/^#\s+(.*)/);
-    if (h3) headings.push({ level: 3, text: h3[1].trim(), id: slugifyHeading(h3[1], seen) });
-    else if (h2) headings.push({ level: 2, text: h2[1].trim(), id: slugifyHeading(h2[1], seen) });
-    else if (h1) headings.push({ level: 1, text: h1[1].trim(), id: slugifyHeading(h1[1], seen) });
+    if (h3) headings.push({ level: 3, text: stripEscapes(h3[1].trim()), id: slugifyHeading(h3[1], seen) });
+    else if (h2) headings.push({ level: 2, text: stripEscapes(h2[1].trim()), id: slugifyHeading(h2[1], seen) });
+    else if (h1) headings.push({ level: 1, text: stripEscapes(h1[1].trim()), id: slugifyHeading(h1[1], seen) });
   }
 
   return headings;
+}
+
+/**
+ * Replace backslash-escaped markdown-significant characters (e.g. "\*",
+ * "\_", "\#") with a placeholder token holding the literal character, so
+ * later block/inline parsing doesn't treat it as syntax. Tokens are
+ * resolved back to plain text at the very end of rendering.
+ */
+function protectEscapedChars(text: string): string {
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (ch === '\\' && next && ESCAPABLE_CHARS.includes(next)) {
+      out += `\u0000ESC${next.charCodeAt(0)}\u0000`;
+      i++;
+    } else {
+      out += ch;
+    }
+  }
+  return out;
+}
+
+function restoreEscapedChars(html: string): string {
+  return html.replace(/\u0000ESC(\d+)\u0000/g, (_m, code) => {
+    const ch = String.fromCharCode(Number(code));
+    // The literal character may itself need HTML-escaping (e.g. "\<").
+    return escapeHtml(ch);
+  });
 }
 
 function escapeHtml(str: string): string {
@@ -98,7 +145,7 @@ export function splitTableRow(line: string): string[] {
 }
 
 export function renderMarkdown(source: string): string {
-  const escaped = escapeHtml(source);
+  const escaped = protectEscapedChars(escapeHtml(source));
   const lines = escaped.split('\n');
 
   const html: string[] = [];
@@ -268,5 +315,5 @@ export function renderMarkdown(source: string): string {
   }
 
   flushList();
-  return html.join('\n');
+  return restoreEscapedChars(html.join('\n'));
 }

@@ -22,6 +22,121 @@ interface Env {
   ASSETS: Fetcher;
 }
 
+const SITE_URL = 'https://doclix.pages.dev';
+
+function htmlEscape(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+// Trim a description down to a sane meta-description length without
+// cutting mid-word.
+function truncateDescription(text: string, max = 160): string {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (clean.length <= max) return clean;
+  return clean.slice(0, max).replace(/\s+\S*$/, '') + '…';
+}
+
+async function renderDocShell(
+  env: Env,
+  params: Record<string, string | string[]>,
+  request: Request
+): Promise<Response> {
+  // Always fetch the built app shell first; if anything below fails we
+  // fall back to serving it untouched rather than breaking the page.
+  const shellRes = await env.ASSETS.fetch(request);
+  const supabaseUrl = env.SUPABASE_URL;
+  const supabaseAnonKey = env.SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey || !shellRes.ok) {
+    return shellRes;
+  }
+
+  const rawPath = params.path;
+  const segments = Array.isArray(rawPath) ? rawPath : rawPath ? [rawPath] : [];
+  const [projectSlug, sectionSlug] = segments;
+  if (!projectSlug) return shellRes;
+
+  const headers = {
+    apikey: supabaseAnonKey,
+    Authorization: `Bearer ${supabaseAnonKey}`,
+  };
+
+  try {
+    const projectRes = await fetch(
+      `${supabaseUrl}/rest/v1/projects?slug=eq.${encodeURIComponent(
+        projectSlug
+      )}&select=id,title,description`,
+      { headers }
+    );
+    if (!projectRes.ok) return shellRes;
+
+    const projects: Array<{ id: string; title: string; description: string | null }> =
+      await projectRes.json();
+    const project = projects[0];
+    if (!project) return shellRes;
+
+    let pageTitle = `${project.title} | DOCLIX`;
+    let description = project.description ? truncateDescription(project.description) : `${project.title} documentation on DOCLIX.`;
+    const canonicalPath = sectionSlug ? `/docs/${projectSlug}/${sectionSlug}` : `/docs/${projectSlug}`;
+
+    if (sectionSlug) {
+      const sectionRes = await fetch(
+        `${supabaseUrl}/rest/v1/sections?project_id=eq.${project.id}&slug=eq.${encodeURIComponent(
+          sectionSlug
+        )}&select=title,content`,
+        { headers }
+      );
+      if (sectionRes.ok) {
+        const sectionsData: Array<{ title: string; content: string }> = await sectionRes.json();
+        const section = sectionsData[0];
+        if (section) {
+          pageTitle = `${section.title} | ${project.title} | DOCLIX`;
+          const plainText = (section.content ?? '')
+            .replace(/```[\s\S]*?```/g, ' ')
+            .replace(/[#*`_>\-\[\]()!]/g, ' ');
+          description = plainText.trim() ? truncateDescription(plainText) : description;
+        }
+      }
+    }
+
+    let html = await shellRes.text();
+    html = html
+      .replace(/<title>.*?<\/title>/s, `<title>${htmlEscape(pageTitle)}</title>`)
+      .replace(
+        /<meta name="description" content=".*?"\s*\/>/s,
+        `<meta name="description" content="${htmlEscape(description)}" />`
+      );
+
+    // Canonical link and Open Graph tags aren't in index.html at all yet,
+    // so add them right before </head> rather than trying to replace
+    // something that doesn't exist.
+    const extraTags = [
+      `<link rel="canonical" href="${htmlEscape(SITE_URL + canonicalPath)}" />`,
+      `<meta property="og:title" content="${htmlEscape(pageTitle)}" />`,
+      `<meta property="og:description" content="${htmlEscape(description)}" />`,
+      `<meta property="og:url" content="${htmlEscape(SITE_URL + canonicalPath)}" />`,
+      `<meta property="og:type" content="article" />`,
+      `<meta name="twitter:card" content="summary" />`,
+    ].join('\n    ');
+    html = html.replace('</head>', `    ${extraTags}\n  </head>`);
+
+    return new Response(html, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'public, max-age=300',
+      },
+    });
+  } catch {
+    return shellRes;
+  }
+}
+
 export const onRequestGet: PagesFunction<Env> = async ({ env, params, request }) => {
   const rawPath = params.path;
   const segments = Array.isArray(rawPath) ? rawPath : rawPath ? [rawPath] : [];
@@ -32,11 +147,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, params, request })
 
   if (!isMarkdownRequest) {
     // Not a .md request — this is a normal /docs/:projectSlug or
-    // /docs/:projectSlug/:sectionSlug page view. Hand off to the static
-    // asset server so the React app (DocProjectPage) renders as usual;
-    // simply 404-ing here would NOT fall back automatically, since this
-    // catch-all Function has already matched the route ("fail closed").
-    return env.ASSETS.fetch(request);
+    // /docs/:projectSlug/:sectionSlug page view, served to human
+    // visitors and to Googlebot. We still need real per-page <title>
+    // and <meta description> in the initial HTML response (not just
+    // set client-side after React hydrates), so search snippets show
+    // the actual doc title/description instead of the generic DOCLIX
+    // ones baked into index.html. Fetch the underlying app shell, swap
+    // in the right meta tags, and return that instead of the raw shell.
+    return renderDocShell(env, params, request);
   }
 
   const projectSlugSegment = segments[0];

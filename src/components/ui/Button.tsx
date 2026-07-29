@@ -15,9 +15,9 @@ const buttonVariants = cva(
         destructive: 'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 hover:shadow-md',
         link: 'text-primary underline-offset-4 hover:underline',
         floating:
-          'rounded-full bg-primary text-primary-foreground shadow-[0_8px_24px_-8px_hsl(var(--primary)/0.7)] hover:-translate-y-0.5 hover:shadow-[0_14px_32px_-10px_hsl(var(--primary)/0.8)] active:translate-y-0',
+          'rounded-md bg-primary text-primary-foreground shadow-[0_8px_24px_-8px_hsl(var(--primary)/0.7)] hover:-translate-y-0.5 hover:shadow-[0_14px_32px_-10px_hsl(var(--primary)/0.8)] active:translate-y-0',
         'floating-outline':
-          'rounded-full border border-border/80 bg-card/60 backdrop-blur-sm text-foreground shadow-[0_6px_20px_-10px_rgba(0,0,0,0.6)] hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-[0_12px_28px_-10px_rgba(0,0,0,0.7)] active:translate-y-0',
+          'rounded-md border border-border/80 bg-card/60 backdrop-blur-sm text-foreground shadow-[0_6px_20px_-10px_rgba(0,0,0,0.6)] hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-[0_12px_28px_-10px_rgba(0,0,0,0.7)] active:translate-y-0',
       },
       size: {
         default: 'h-10 px-4 py-2',

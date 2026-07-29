@@ -9,10 +9,10 @@ export default function BlogListPage() {
     <div className="min-h-screen bg-background">
       <header className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-4 sm:px-6">
         <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md border border-primary/30 bg-primary/10">
             <BookOpen className="h-4 w-4 text-primary" />
           </div>
-          <span className="font-semibold tracking-tight">DOCLIX</span>
+          <span className="font-display text-[15px] font-semibold tracking-tight">DOCLIX</span>
         </Link>
         <Link
           to="/"
@@ -25,29 +25,35 @@ export default function BlogListPage() {
 
       <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-8 sm:px-6">
         <div className="mb-10">
-          <h1 className="text-3xl font-semibold tracking-tight">Blog</h1>
+          <div className="doc-index mb-2">blog</div>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">Blog</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             What's new in DOCLIX, and why we built it that way.
           </p>
         </div>
 
         {posts.length === 0 && (
-          <p className="rounded-xl border border-border bg-card/60 px-5 py-8 text-center text-sm text-muted-foreground">
+          <p className="rounded-lg border border-border bg-card/60 px-5 py-8 text-center text-sm text-muted-foreground">
             No posts yet. Check back soon.
           </p>
         )}
 
         <div className="flex flex-col gap-3">
-          {posts.map((post) => (
+          {posts.map((post, i) => (
             <Link
               key={post.slug}
               to={`/blog/${post.slug}`}
-              className="group rounded-2xl border border-border bg-card/60 p-6 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_16px_40px_-24px_hsl(var(--primary)/0.5)]"
+              className="group relative rounded-lg border border-border bg-card/60 p-6 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_16px_40px_-24px_hsl(var(--primary)/0.5)]"
             >
+              <span className="doc-bracket absolute right-6 top-6 text-xs">
+                {String(i + 1).padStart(2, '0')}
+              </span>
               <time className="text-xs font-medium text-muted-foreground">
                 {formatPostDate(post.date)}
               </time>
-              <h2 className="mt-1.5 text-xl font-semibold tracking-tight">{post.title}</h2>
+              <h2 className="font-display mt-1.5 max-w-[85%] text-xl font-semibold tracking-tight">
+                {post.title}
+              </h2>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{post.summary}</p>
               <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-primary">
                 Read post

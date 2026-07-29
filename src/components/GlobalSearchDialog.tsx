@@ -32,7 +32,7 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
-          className="fixed left-1/2 top-24 z-50 w-full max-w-lg -translate-x-1/2 overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
+          className="fixed left-1/2 top-24 z-50 w-full max-w-lg -translate-x-1/2 overflow-hidden rounded-lg border border-border bg-card shadow-2xl"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <DialogPrimitive.Title className="sr-only">Search</DialogPrimitive.Title>

@@ -20,12 +20,12 @@ export default function NotFoundPage() {
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[28rem] bg-[radial-gradient(circle_at_50%_0%,hsl(var(--primary)/0.14),transparent_60%)]" />
 
       <div className="flex flex-col items-center text-center">
-        <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15">
+        <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-md border border-primary/30 bg-primary/10">
           <BookOpen className="h-6 w-6 text-primary" />
         </div>
 
         <p className="text-7xl font-bold tracking-tight text-primary/90 sm:text-8xl">404</p>
-        <h1 className="mt-3 text-xl font-semibold sm:text-2xl">This page doesn't exist</h1>
+        <h1 className="font-display mt-3 text-xl font-semibold sm:text-2xl">This page doesn't exist</h1>
         <p className="mt-2 max-w-sm text-sm text-muted-foreground">
           The doc, project, or page you're looking for may have moved, been renamed, or never
           existed. Try searching for it below.
@@ -36,7 +36,7 @@ export default function NotFoundPage() {
       <div className="mt-8 w-full max-w-md">
         <div
           className={
-            'flex items-center gap-2 rounded-xl border bg-card px-4 py-3 shadow-sm transition-all duration-200 ' +
+            'flex items-center gap-2 rounded-lg border bg-card px-4 py-3 shadow-sm transition-all duration-200 ' +
             (focused ? 'border-primary/50 shadow-[0_16px_50px_-20px_hsl(var(--primary)/0.35)]' : 'border-border')
           }
         >
@@ -54,7 +54,7 @@ export default function NotFoundPage() {
         </div>
 
         {query.trim().length >= 2 && (
-          <div className="mt-2 max-h-72 overflow-y-auto scrollbar-thin rounded-xl border border-border bg-card p-2 shadow-sm">
+          <div className="mt-2 max-h-72 overflow-y-auto scrollbar-thin rounded-lg border border-border bg-card p-2 shadow-sm">
             {!loading && results.length === 0 && (
               <p className="px-2 py-4 text-center text-sm text-muted-foreground">No results found.</p>
             )}

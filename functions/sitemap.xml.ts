@@ -33,13 +33,35 @@ ${lastmod ? `    <lastmod>${lastmod}</lastmod>\n` : ''}    <changefreq>${changef
   </url>`;
 }
 
+// Blog posts are static .md files under src/content/blog/, bundled into
+// the app at build time via import.meta.glob (see src/lib/blog.ts). That
+// Vite-only API isn't available in the Pages Functions runtime, which
+// builds and runs separately from the Vite app, so post slugs and dates
+// are listed here instead. Keep this in sync with src/content/blog/ —
+// each filename is `{date}-{slug}.md` and IS the slug used in
+// BlogPostPage's route (see src/pages/BlogPostPage.tsx / blog.ts
+// slugFromPath, which keeps the date prefix as part of the slug).
+const BLOG_POSTS: Array<{ slug: string; date: string }> = [
+  { slug: '2026-07-10-search-was-always-the-point', date: '2026-07-10' },
+  { slug: '2026-07-26-new-landing-page', date: '2026-07-26' },
+];
+
 export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
+  // lastmod for the static/blog-list pages: use the newest blog post date
+  // as a stand-in for "most recently changed," since these routes aren't
+  // backed by a row with its own updated_at.
+  const latestBlogDate = BLOG_POSTS.reduce(
+    (latest, p) => (p.date > latest ? p.date : latest),
+    BLOG_POSTS[0]?.date ?? new Date().toISOString().slice(0, 10)
+  );
+
   const entries: string[] = [
-    urlEntry(`${SITE_URL}/`, 'weekly', '1.0'),
-    urlEntry(`${SITE_URL}/blog`, 'weekly', '0.6'),
+    urlEntry(`${SITE_URL}/`, 'weekly', '1.0', latestBlogDate),
+    urlEntry(`${SITE_URL}/blog`, 'weekly', '0.6', latestBlogDate),
     urlEntry(`${SITE_URL}/login`, 'monthly', '0.4'),
     urlEntry(`${SITE_URL}/signup`, 'monthly', '0.5'),
     urlEntry(`${SITE_URL}/dashboard`, 'monthly', '0.3'),
+    ...BLOG_POSTS.map((p) => urlEntry(`${SITE_URL}/blog/${p.slug}`, 'monthly', '0.5', p.date)),
   ];
 
   const supabaseUrl = env.SUPABASE_URL;

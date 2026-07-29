@@ -29,13 +29,13 @@ function SettingsCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
+    <section className="rounded-lg border border-border bg-card p-5">
       <div className="mb-4 flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/15">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-primary/25 bg-primary/10">
           <Icon className="h-4 w-4 text-primary" />
         </div>
         <div>
-          <h2 className="font-medium">{title}</h2>
+          <h2 className="font-display font-medium">{title}</h2>
           <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
         </div>
       </div>
@@ -132,7 +132,8 @@ export default function AccountPage() {
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-10 sm:px-6">
         <div className="mb-8">
-          <h1 className="text-2xl font-semibold tracking-tight">{t('settings.title')}</h1>
+          <div className="doc-index mb-2">account</div>
+          <h1 className="font-display text-2xl font-semibold tracking-tight">{t('settings.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Manage your profile, sign-in details, and account.
           </p>
@@ -261,20 +262,20 @@ export default function AccountPage() {
             </form>
           </SettingsCard>
 
-          <section className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">
+          <section className="rounded-lg border border-destructive/30 bg-destructive/5 p-5">
             <div className="mb-4 flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-destructive/15">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-destructive/25 bg-destructive/10">
                 <AlertTriangle className="h-4 w-4 text-destructive" />
               </div>
               <div>
-                <h2 className="font-medium text-destructive">Danger zone</h2>
+                <h2 className="font-display font-medium text-destructive">Danger zone</h2>
                 <p className="mt-0.5 text-sm text-muted-foreground">
                   Irreversible actions — proceed with caution
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card p-4">
+            <div className="flex items-center justify-between gap-4 rounded-md border border-border bg-card p-4">
               <div>
                 <p className="text-sm font-medium">Delete account</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">

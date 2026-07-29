@@ -27,13 +27,13 @@ export function ProjectHeader({ title }: { title?: string }) {
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4 sm:px-6">
       <Link to={user ? '/dashboard' : '/'} className="flex items-center gap-2 pl-9 md:pl-0">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/15">
+        <div className="flex h-7 w-7 items-center justify-center rounded-md border border-primary/30 bg-primary/10">
           <BookOpen className="h-4 w-4 text-primary" />
         </div>
-        <span className="font-semibold tracking-tight">DOCLIX</span>
+        <span className="font-display text-[15px] font-semibold tracking-tight">DOCLIX</span>
         {title && (
           <>
-            <span className="text-muted-foreground">/</span>
+            <span className="doc-bracket text-muted-foreground">/</span>
             <span className="truncate text-sm text-muted-foreground">{title}</span>
           </>
         )}

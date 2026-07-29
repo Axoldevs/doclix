@@ -35,7 +35,7 @@ function LiveSearchDemo() {
     <div className="relative mx-auto w-full max-w-xl">
       <div
         className={cn(
-          'flex items-center gap-3 rounded-2xl border bg-card/80 px-5 py-4 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)] backdrop-blur-sm transition-all duration-300',
+          'flex items-center gap-3 rounded-lg border bg-card/80 px-5 py-4 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)] backdrop-blur-sm transition-all duration-300',
           focused ? 'border-primary/50 shadow-[0_20px_60px_-15px_hsl(var(--primary)/0.35)]' : 'border-border'
         )}
       >
@@ -58,7 +58,7 @@ function LiveSearchDemo() {
       </div>
 
       {showPanel && (
-        <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-10 max-h-72 overflow-y-auto scrollbar-thin rounded-2xl border border-border bg-card p-2 text-left shadow-2xl animate-fade-up">
+        <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-10 max-h-72 overflow-y-auto scrollbar-thin rounded-lg border border-border bg-card p-2 text-left shadow-2xl animate-fade-up">
           {!loading && query.trim().length >= 2 && results.length === 0 && (
             <p className="px-3 py-6 text-center text-sm text-muted-foreground">{t('landing.searchEmpty')}</p>
           )}
@@ -116,11 +116,13 @@ function FeatureCard({
   title,
   description,
   delay,
+  index,
 }: {
   icon: typeof Zap;
   title: string;
   description: string;
   delay: number;
+  index: number;
 }) {
   const { ref, visible } = useRevealOnScroll();
   return (
@@ -128,14 +130,17 @@ function FeatureCard({
       ref={ref}
       style={{ animationDelay: visible ? `${delay}ms` : undefined }}
       className={cn(
-        'rounded-2xl border border-border bg-card/60 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_16px_40px_-20px_hsl(var(--primary)/0.4)]',
+        'rounded-lg border border-border bg-card/60 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_16px_40px_-20px_hsl(var(--primary)/0.4)]',
         visible ? 'animate-fade-up opacity-100' : 'opacity-0'
       )}
     >
-      <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
-        <Icon className="h-5 w-5 text-primary" />
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/25 bg-primary/10">
+          <Icon className="h-5 w-5 text-primary" />
+        </div>
+        <span className="doc-bracket text-xs">{String(index).padStart(2, '0')}</span>
       </div>
-      <h3 className="mb-1.5 font-semibold tracking-tight">{title}</h3>
+      <h3 className="font-display mb-1.5 font-semibold tracking-tight">{title}</h3>
       <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
     </div>
   );
@@ -153,10 +158,10 @@ export default function LandingPage() {
       {/* Nav */}
       <header className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md border border-primary/30 bg-primary/10">
             <BookOpen className="h-4 w-4 text-primary" />
           </div>
-          <span className="font-semibold tracking-tight">DOCLIX</span>
+          <span className="font-display text-[15px] font-semibold tracking-tight">DOCLIX</span>
         </div>
         <div className="flex items-center gap-2">
           <Link
@@ -200,15 +205,14 @@ export default function LandingPage() {
       <section className="relative mx-auto flex w-full max-w-6xl flex-col items-center px-4 pb-24 pt-16 text-center sm:px-6 sm:pt-24">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[36rem] bg-[radial-gradient(circle_at_50%_0%,hsl(var(--primary)/0.18),transparent_60%)]"
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[36rem] bg-[radial-gradient(circle_at_50%_0%,hsl(var(--primary)/0.14),transparent_60%)]"
         />
 
-        <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-secondary/40 px-4 py-1.5 text-xs font-medium text-muted-foreground animate-fade-up">
-          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+        <div className="doc-index mb-5 inline-flex items-center rounded-md border border-border bg-secondary/40 px-3 py-1.5 animate-fade-up">
           {t('landing.badge')}
         </div>
 
-        <h1 className="max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl md:text-6xl animate-fade-up" style={{ animationDelay: '80ms' }}>
+        <h1 className="font-display max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl md:text-6xl animate-fade-up" style={{ animationDelay: '80ms' }}>
           {t('landing.heading1')}
           <br />
           <span className="text-primary">{t('landing.heading2')}</span>
@@ -244,7 +248,8 @@ export default function LandingPage() {
       {/* Features */}
       <section id="features" className="mx-auto w-full max-w-6xl px-4 pb-24 sm:px-6">
         <div className="mb-12 text-center">
-          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+          <div className="doc-index mb-3 inline-flex items-center justify-center">features</div>
+          <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
             {t('landing.featuresHeading')}
           </h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
@@ -254,36 +259,42 @@ export default function LandingPage() {
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <FeatureCard
+            index={1}
             icon={Search}
             title={t('landing.features.search.title')}
             description={t('landing.features.search.description')}
             delay={0}
           />
           <FeatureCard
+            index={2}
             icon={GitBranch}
             title={t('landing.features.reorder.title')}
             description={t('landing.features.reorder.description')}
             delay={80}
           />
           <FeatureCard
+            index={3}
             icon={Zap}
             title={t('landing.features.autosave.title')}
             description={t('landing.features.autosave.description')}
             delay={160}
           />
           <FeatureCard
+            index={4}
             icon={FileText}
             title={t('landing.features.importFile.title')}
             description={t('landing.features.importFile.description')}
             delay={240}
           />
           <FeatureCard
+            index={5}
             icon={BookOpen}
             title={t('landing.features.publicByDefault.title')}
             description={t('landing.features.publicByDefault.description')}
             delay={320}
           />
           <FeatureCard
+            index={6}
             icon={ArrowRight}
             title={t('landing.features.readyFast.title')}
             description={t('landing.features.readyFast.description')}
@@ -294,12 +305,12 @@ export default function LandingPage() {
 
       {/* CTA footer */}
       <section className="mx-auto w-full max-w-6xl px-4 pb-24 sm:px-6">
-        <div className="relative overflow-hidden rounded-3xl border border-border bg-card/60 px-8 py-14 text-center sm:px-16">
+        <div className="relative overflow-hidden rounded-lg border border-border bg-card/60 px-8 py-14 text-center sm:px-16">
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_120%,hsl(var(--primary)/0.16),transparent_60%)]"
+            className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_120%,hsl(var(--primary)/0.14),transparent_60%)]"
           />
-          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+          <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
             {t('landing.footerCtaHeading')}
           </h2>
           <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">

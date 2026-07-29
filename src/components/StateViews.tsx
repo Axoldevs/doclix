@@ -51,7 +51,7 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border px-6 py-16 text-center">
+    <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border px-6 py-16 text-center">
       <FileQuestion className="h-8 w-8 text-muted-foreground" />
       <div>
         <p className="font-medium text-foreground">{title}</p>

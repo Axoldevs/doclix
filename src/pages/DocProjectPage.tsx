@@ -323,7 +323,7 @@ export default function DocProjectPage() {
                   )}
                 >
                   <div className="mb-4 flex items-center justify-between gap-3">
-                    <h1 className="text-2xl font-semibold tracking-tight">{activeSection.title}</h1>
+                    <h1 className="font-display text-2xl font-semibold tracking-tight">{activeSection.title}</h1>
                     <div className="flex shrink-0 items-center gap-2">
                       {!editing && (
                         <TranslateButton
