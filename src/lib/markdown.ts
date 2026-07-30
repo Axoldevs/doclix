@@ -144,8 +144,46 @@ export function splitTableRow(line: string): string[] {
   return trimmed.split('|').map((c) => c.trim());
 }
 
+/**
+ * Pull fenced code blocks out of the raw source BEFORE any HTML-escaping or
+ * backslash-escape processing runs, so code content is never mistaken for
+ * markdown syntax (e.g. a literal "\*" in a Windows path or regex inside a
+ * code block must survive untouched, not get treated as an escape sequence).
+ * Each block becomes a placeholder line; the real (HTML-escaped, otherwise
+ * untouched) code is spliced back in at the end.
+ */
+function extractCodeBlocks(source: string): { text: string; blocks: { lang: string; code: string }[] } {
+  const lines = source.split('\n');
+  const blocks: { lang: string; code: string }[] = [];
+  const outLines: string[] = [];
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^```/.test(line.trim())) {
+      const lang = line.trim().slice(3).trim();
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !/^```/.test(lines[i].trim())) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      i++; // skip closing fence
+      const idx = blocks.length;
+      blocks.push({ lang, code: escapeHtml(codeLines.join('\n')) });
+      outLines.push(`\u0000CODEBLOCK${idx}\u0000`);
+    } else {
+      outLines.push(line);
+      i++;
+    }
+  }
+
+  return { text: outLines.join('\n'), blocks };
+}
+
 export function renderMarkdown(source: string): string {
-  const escaped = protectEscapedChars(escapeHtml(source));
+  const { text: withoutCode, blocks: codeBlocks } = extractCodeBlocks(source);
+  const escaped = protectEscapedChars(escapeHtml(withoutCode));
   const lines = escaped.split('\n');
 
   const html: string[] = [];
@@ -176,6 +214,18 @@ export function renderMarkdown(source: string): string {
 
   while (i < lines.length) {
     const line = lines[i];
+
+    // Restored code block placeholder — always wins, never treated as table/list/etc.
+    const codeBlockMatch = line.match(/^\u0000CODEBLOCK(\d+)\u0000$/);
+    if (codeBlockMatch) {
+      flushList();
+      const block = codeBlocks[Number(codeBlockMatch[1])];
+      html.push(
+        `<pre><code${block.lang ? ` class="language-${block.lang}"` : ''}>${block.code}</code></pre>`
+      );
+      i++;
+      continue;
+    }
 
     // Tables: header row, separator row (---|---), then body rows
     if (line.trim().includes('|') && i + 1 < lines.length && isTableSeparatorRow(lines[i + 1])) {
@@ -210,23 +260,6 @@ export function renderMarkdown(source: string): string {
         .join('')}</tbody>`;
 
       html.push(`<div class="doclix-table-wrap"><table>${thead}${tbody}</table></div>`);
-      continue;
-    }
-
-    // Code block ```lang ... ```
-    if (/^```/.test(line.trim())) {
-      flushList();
-      const lang = line.trim().slice(3).trim();
-      const codeLines: string[] = [];
-      i++;
-      while (i < lines.length && !/^```/.test(lines[i].trim())) {
-        codeLines.push(lines[i]);
-        i++;
-      }
-      i++; // skip closing fence
-      html.push(
-        `<pre><code${lang ? ` class="language-${lang}"` : ''}>${codeLines.join('\n')}</code></pre>`
-      );
       continue;
     }
 

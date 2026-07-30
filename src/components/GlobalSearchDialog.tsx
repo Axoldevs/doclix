@@ -27,6 +27,13 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
     navigate(result.sectionSlug ? `/docs/${result.projectSlug}/${result.sectionSlug}` : `/docs/${result.projectSlug}`);
   }
 
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!query.trim()) return;
+    onOpenChange(false);
+    navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+  }
+
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
@@ -36,17 +43,17 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <DialogPrimitive.Title className="sr-only">Search</DialogPrimitive.Title>
-          <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <form onSubmit={handleSubmit} className="flex items-center gap-2 border-b border-border px-4 py-3">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
             <input
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search all projects and sections…"
+              placeholder="Search all projects and docs…"
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
             {loading && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />}
-          </div>
+          </form>
 
           <div className="max-h-80 overflow-y-auto scrollbar-thin p-2">
             {error && <p className="px-2 py-3 text-sm text-destructive">{error}</p>}

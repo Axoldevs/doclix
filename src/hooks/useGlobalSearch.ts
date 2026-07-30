@@ -20,10 +20,14 @@ function makeSnippet(content: string, query: string, radius = 60): string {
   return `${start > 0 ? '…' : ''}${plain.slice(start, end)}${end < plain.length ? '…' : ''}`;
 }
 
+export type SearchTypeFilter = 'all' | 'projects' | 'docs';
+
 // Searches across every project's title/description and every section's
 // title/content. Read access is public (RLS allows select on all rows), so
 // this is a genuinely global search, not scoped to the signed-in user.
-export function useGlobalSearch() {
+// `typeFilter` narrows results to only projects or only docs (sections);
+// "docs" is the user-facing name for what the schema calls sections.
+export function useGlobalSearch(typeFilter: SearchTypeFilter = 'all') {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -31,7 +35,7 @@ export function useGlobalSearch() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestIdRef = useRef(0);
 
-  const runSearch = useCallback(async (q: string) => {
+  const runSearch = useCallback(async (q: string, filter: SearchTypeFilter) => {
     const trimmed = q.trim();
     if (trimmed.length < 2) {
       setResults([]);
@@ -46,17 +50,24 @@ export function useGlobalSearch() {
 
     const supabase = getSupabase();
 
+    const wantProjects = filter === 'all' || filter === 'projects';
+    const wantDocs = filter === 'all' || filter === 'docs';
+
     const [projectsRes, sectionsRes] = await Promise.all([
-      supabase
-        .from('projects')
-        .select('id, slug, title, description')
-        .or(`title.ilike.%${trimmed}%,description.ilike.%${trimmed}%`)
-        .limit(8),
-      supabase
-        .from('sections')
-        .select('id, slug, title, content, project_id, projects!inner(slug, title)')
-        .or(`title.ilike.%${trimmed}%,content.ilike.%${trimmed}%`)
-        .limit(20),
+      wantProjects
+        ? supabase
+            .from('projects')
+            .select('id, slug, title, description')
+            .or(`title.ilike.%${trimmed}%,description.ilike.%${trimmed}%`)
+            .limit(wantDocs ? 8 : 30)
+        : Promise.resolve({ data: [], error: null } as any),
+      wantDocs
+        ? supabase
+            .from('sections')
+            .select('id, slug, title, content, project_id, projects!inner(slug, title)')
+            .or(`title.ilike.%${trimmed}%,content.ilike.%${trimmed}%`)
+            .limit(wantProjects ? 20 : 40)
+        : Promise.resolve({ data: [], error: null } as any),
     ]);
 
     if (requestId !== requestIdRef.current) return; // stale response, ignore
@@ -68,7 +79,7 @@ export function useGlobalSearch() {
       return;
     }
 
-    const projectResults: SearchResult[] = (projectsRes.data ?? []).map((p) => ({
+    const projectResults: SearchResult[] = (projectsRes.data ?? []).map((p: any) => ({
       type: 'project',
       id: p.id,
       title: p.title,
@@ -93,11 +104,11 @@ export function useGlobalSearch() {
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => runSearch(query), 250);
+    debounceRef.current = setTimeout(() => runSearch(query, typeFilter), 250);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, runSearch]);
+  }, [query, typeFilter, runSearch]);
 
   return { query, setQuery, results, loading, error };
 }

@@ -15,6 +15,12 @@ export default function NotFoundPage() {
     );
   }
 
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!query.trim()) return;
+    navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-16">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[28rem] bg-[radial-gradient(circle_at_50%_0%,hsl(var(--primary)/0.14),transparent_60%)]" />
@@ -34,7 +40,8 @@ export default function NotFoundPage() {
 
       {/* Inline search, reusing the same global search as the rest of the app */}
       <div className="mt-8 w-full max-w-md">
-        <div
+        <form
+          onSubmit={handleSubmit}
           className={
             'flex items-center gap-2 rounded-lg border bg-card px-4 py-3 shadow-sm transition-all duration-200 ' +
             (focused ? 'border-primary/50 shadow-[0_16px_50px_-20px_hsl(var(--primary)/0.35)]' : 'border-border')
@@ -51,7 +58,7 @@ export default function NotFoundPage() {
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           {loading && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />}
-        </div>
+        </form>
 
         {query.trim().length >= 2 && (
           <div className="mt-2 max-h-72 overflow-y-auto scrollbar-thin rounded-lg border border-border bg-card p-2 shadow-sm">

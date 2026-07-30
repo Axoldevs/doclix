@@ -3,71 +3,77 @@
 @tailwind utilities;
 
 @layer base {
-  /* Light theme: warm paper surfaces (not sterile white) with deep
-     ink text and a signal-amber accent — reads like an annotated
-     spec sheet rather than a generic SaaS dashboard. */
+  /* Light theme: cool indigo-tinted neutrals with a violet-blue
+     accent — reads like enterprise SaaS rather than a warm
+     doc-comment aesthetic. */
   :root {
-    --background: 40 30% 97%;
-    --foreground: 220 35% 12%;
+    --background: 240 30% 98.5%;
+    --foreground: 235 30% 12%;
 
-    --card: 40 25% 99%;
-    --card-foreground: 220 35% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 235 30% 12%;
 
-    --primary: 32 95% 46%;
-    --primary-foreground: 30 40% 99%;
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 40 20% 92%;
-    --secondary-foreground: 220 35% 12%;
+    --secondary: 240 25% 94%;
+    --secondary-foreground: 235 30% 14%;
 
-    --muted: 40 18% 93%;
-    --muted-foreground: 220 12% 40%;
+    --muted: 240 20% 95.5%;
+    --muted-foreground: 235 12% 45%;
 
-    --accent: 32 95% 46%;
-    --accent-foreground: 30 40% 99%;
+    --accent: 258 70% 60%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 5 72% 45%;
+    --destructive: 355 75% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 36 18% 85%;
-    --input: 36 18% 85%;
-    --ring: 32 95% 46%;
+    --border: 240 18% 89%;
+    --input: 240 18% 89%;
+    --ring: 243 75% 59%;
 
-    --radius: 6px;
+    --radius: 8px;
 
-    --teal: 172 60% 32%;
+    --teal: 172 55% 34%;
+
+    --gradient-start: 243 75% 59%;
+    --gradient-end: 262 68% 58%;
   }
 
-  /* Dark theme: near-black ink background with a warm signal-amber
-     accent, like a terminal or a doc-comment highlight. */
+  /* Dark theme: deep indigo-black surfaces with an indigo→violet
+     gradient accent — professional, low-noise, high-contrast type. */
   :root.dark {
-    --background: 222 28% 6%;
-    --foreground: 40 20% 94%;
+    --background: 240 32% 6.5%;
+    --foreground: 240 20% 95%;
 
-    --card: 222 24% 8.5%;
-    --card-foreground: 40 20% 94%;
+    --card: 240 26% 9%;
+    --card-foreground: 240 20% 95%;
 
-    --primary: 36 96% 58%;
-    --primary-foreground: 222 30% 8%;
+    --primary: 243 82% 68%;
+    --primary-foreground: 240 32% 7%;
 
-    --secondary: 222 18% 13%;
-    --secondary-foreground: 40 20% 94%;
+    --secondary: 240 20% 14%;
+    --secondary-foreground: 240 20% 95%;
 
-    --muted: 222 18% 12%;
-    --muted-foreground: 220 10% 62%;
+    --muted: 240 20% 13%;
+    --muted-foreground: 235 12% 65%;
 
-    --accent: 36 96% 58%;
-    --accent-foreground: 222 30% 8%;
+    --accent: 262 75% 68%;
+    --accent-foreground: 240 32% 7%;
 
-    --destructive: 5 78% 62%;
-    --destructive-foreground: 220 20% 8%;
+    --destructive: 355 80% 65%;
+    --destructive-foreground: 240 20% 8%;
 
-    --border: 222 16% 17%;
-    --input: 222 16% 17%;
-    --ring: 36 96% 58%;
+    --border: 240 18% 18%;
+    --input: 240 18% 18%;
+    --ring: 243 82% 68%;
 
-    --radius: 6px;
+    --radius: 8px;
 
-    --teal: 172 55% 48%;
+    --teal: 172 50% 52%;
+
+    --gradient-start: 243 82% 68%;
+    --gradient-end: 262 75% 68%;
   }
 }
 
@@ -137,6 +143,62 @@
   .doc-bracket {
     font-family: 'IBM Plex Mono', ui-monospace, monospace;
     color: hsl(var(--muted-foreground));
+  }
+
+  /* Signature element: the "gradient seam" — a 2px indigo-to-violet
+     line used as a spine/binding motif (echoes a bound document's
+     edge). Applied sparingly to the top of primary surfaces, active
+     nav items, and the wordmark underline — never as a full-surface
+     wash. */
+  .gradient-seam {
+    background-image: linear-gradient(
+      90deg,
+      hsl(var(--gradient-start)),
+      hsl(var(--gradient-end))
+    );
+  }
+  .gradient-text {
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--gradient-start)),
+      hsl(var(--gradient-end))
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .gradient-surface {
+    background-image: linear-gradient(
+      145deg,
+      hsl(var(--gradient-start)),
+      hsl(var(--gradient-end))
+    );
+  }
+  .gradient-border {
+    position: relative;
+  }
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--gradient-start) / 0.6),
+      hsl(var(--gradient-end) / 0.15)
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+  .gradient-glow {
+    background: radial-gradient(
+      circle at 50% 0%,
+      hsl(var(--gradient-start) / 0.25),
+      transparent 60%
+    );
   }
 }
 

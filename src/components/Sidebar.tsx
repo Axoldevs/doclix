@@ -235,10 +235,10 @@ function SortableItem({
         to={`/docs/${projectSlug}/${section.slug}`}
         onClick={onNavigate}
         className={cn(
-          'flex flex-1 items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition-colors duration-200',
+          'flex flex-1 items-center gap-2 rounded-lg border-l-2 px-2.5 py-2 text-sm transition-colors duration-200',
           isActive
-            ? 'bg-primary/15 font-medium text-primary'
-            : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
+            ? 'border-l-[hsl(var(--gradient-start))] bg-gradient-to-r from-[hsl(var(--gradient-start)/0.14)] to-transparent font-medium text-primary'
+            : 'border-l-transparent text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
         )}
       >
         <FileText className="h-3.5 w-3.5 shrink-0" />

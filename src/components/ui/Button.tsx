@@ -8,14 +8,14 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:shadow-md',
+        default: 'gradient-surface text-primary-foreground shadow-sm hover:brightness-110 hover:shadow-md',
         secondary: 'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',
         ghost: 'hover:bg-secondary/60',
         outline: 'border border-border bg-transparent hover:border-primary/40 hover:bg-secondary/50',
         destructive: 'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 hover:shadow-md',
         link: 'text-primary underline-offset-4 hover:underline',
         floating:
-          'rounded-md bg-primary text-primary-foreground shadow-[0_8px_24px_-8px_hsl(var(--primary)/0.7)] hover:-translate-y-0.5 hover:shadow-[0_14px_32px_-10px_hsl(var(--primary)/0.8)] active:translate-y-0',
+          'rounded-md gradient-surface text-primary-foreground shadow-[0_8px_24px_-8px_hsl(var(--primary)/0.7)] hover:-translate-y-0.5 hover:shadow-[0_14px_32px_-10px_hsl(var(--primary)/0.8)] active:translate-y-0',
         'floating-outline':
           'rounded-md border border-border/80 bg-card/60 backdrop-blur-sm text-foreground shadow-[0_6px_20px_-10px_rgba(0,0,0,0.6)] hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-[0_12px_28px_-10px_rgba(0,0,0,0.7)] active:translate-y-0',
       },

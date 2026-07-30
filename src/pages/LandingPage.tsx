@@ -29,11 +29,18 @@ function LiveSearchDemo() {
     navigate(result.sectionSlug ? `/docs/${result.projectSlug}/${result.sectionSlug}` : `/docs/${result.projectSlug}`);
   }
 
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!query.trim()) return;
+    navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+  }
+
   const showPanel = focused && query.trim().length > 0;
 
   return (
     <div className="relative mx-auto w-full max-w-xl">
-      <div
+      <form
+        onSubmit={handleSubmit}
         className={cn(
           'flex items-center gap-3 rounded-lg border bg-card/80 px-5 py-4 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)] backdrop-blur-sm transition-all duration-300',
           focused ? 'border-primary/50 shadow-[0_20px_60px_-15px_hsl(var(--primary)/0.35)]' : 'border-border'
@@ -55,7 +62,7 @@ function LiveSearchDemo() {
             ⌘K
           </kbd>
         )}
-      </div>
+      </form>
 
       {showPanel && (
         <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-10 max-h-72 overflow-y-auto scrollbar-thin rounded-lg border border-border bg-card p-2 text-left shadow-2xl animate-fade-up">
@@ -205,7 +212,7 @@ export default function LandingPage() {
       <section className="relative mx-auto flex w-full max-w-6xl flex-col items-center px-4 pb-24 pt-16 text-center sm:px-6 sm:pt-24">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[36rem] bg-[radial-gradient(circle_at_50%_0%,hsl(var(--primary)/0.14),transparent_60%)]"
+          className="gradient-glow pointer-events-none absolute inset-x-0 top-0 -z-10 h-[36rem]"
         />
 
         <div className="doc-index mb-5 inline-flex items-center rounded-md border border-border bg-secondary/40 px-3 py-1.5 animate-fade-up">
@@ -215,7 +222,7 @@ export default function LandingPage() {
         <h1 className="font-display max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl md:text-6xl animate-fade-up" style={{ animationDelay: '80ms' }}>
           {t('landing.heading1')}
           <br />
-          <span className="text-primary">{t('landing.heading2')}</span>
+          <span className="gradient-text">{t('landing.heading2')}</span>
         </h1>
 
         <p

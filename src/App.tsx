@@ -11,6 +11,7 @@ import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import DocProjectPage from '@/pages/DocProjectPage';
 import AccountPage from '@/pages/AccountPage';
 import NotFoundPage from '@/pages/NotFoundPage';
+import SearchResultsPage from '@/pages/SearchResultsPage';
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/blog" element={<BlogListPage />} />
         <Route path="/blog/:postSlug" element={<BlogPostPage />} />
+        <Route path="/search" element={<SearchResultsPage />} />
         <Route
           path="/dashboard"
           element={
