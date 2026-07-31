@@ -305,6 +305,14 @@
 .doclix-prose del {
   text-decoration: line-through;
 }
+.doclix-prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  margin: 0.75rem 0;
+  display: block;
+}
 .doclix-table-wrap {
   overflow-x: auto;
   margin-bottom: 1rem;

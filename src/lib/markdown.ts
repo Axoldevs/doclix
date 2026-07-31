@@ -108,6 +108,12 @@ function renderInline(text: string): string {
     return `\u0000CODE${codeTokens.length - 1}\u0000`;
   });
 
+  // Images ![alt](url) — must be handled before links, since the link
+  // pattern would otherwise match the "[alt](url)" part and leave a stray "!".
+  out = out.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, (_m, alt, url) => {
+    return `<img src="${url}" alt="${alt}" loading="lazy" />`;
+  });
+
   // Links [text](url)
   out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_m, label, url) => {
     return `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`;
