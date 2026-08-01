@@ -53,7 +53,16 @@ function escapeMarkdownSyntax(text: string): string {
   return text
     .split('\n')
     .map((line) => {
-      let escaped = line.replace(/^(\s*)(#{1,6}\s|>\s|[-*]\s|\d+\.\s)/, (_m, ws, marker) => {
+      // Escape literal backslashes FIRST. Plain text commonly contains
+      // backslashes that were never meant as markdown escapes (Windows
+      // paths like "C:\Users\name", regexes like "\d+", etc). If we don't
+      // double them up here, the renderer's own escape handling later sees
+      // e.g. "\*" in "C:\Users\*.txt" and treats it as an intentional
+      // escape sequence, silently eating the backslash. Doubling it to
+      // "\\*" makes the renderer emit a literal backslash followed by an
+      // escaped "*", which is what the plain text actually meant.
+      let escaped = line.replace(/\\/g, '\\\\');
+      escaped = escaped.replace(/^(\s*)(#{1,6}\s|>\s|[-*]\s|\d+\.\s)/, (_m, ws, marker) => {
         return ws + '\\' + marker;
       });
       escaped = escaped.replace(/([*_~`[\]])/g, '\\$1');

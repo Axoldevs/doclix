@@ -20,6 +20,35 @@ function makeSnippet(content: string, query: string, radius = 60): string {
   return `${start > 0 ? '…' : ''}${plain.slice(start, end)}${end < plain.length ? '…' : ''}`;
 }
 
+// Scores a title/content pair against a query so the most relevant results
+// float to the top instead of relying on whatever order Postgres returns.
+// Higher is better. Title matches always outrank body-only matches.
+function scoreMatch(title: string, content: string, query: string): number {
+  const t = title.toLowerCase();
+  const c = content.toLowerCase();
+  const q = query.toLowerCase();
+  let score = 0;
+
+  if (t === q) score += 100;
+  else if (t.startsWith(q)) score += 60;
+  else if (new RegExp(`\\b${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(t)) score += 40;
+  else if (t.includes(q)) score += 20;
+
+  const contentIdx = c.indexOf(q);
+  if (contentIdx !== -1) {
+    // Earlier matches in the body are slightly more relevant, and matches
+    // are worth less than any title match so titles always win ties.
+    score += Math.max(1, 10 - Math.floor(contentIdx / 200));
+  }
+
+  // Reward shorter titles among otherwise-equal matches — a concise page
+  // called "Auth" that matches "auth" is more likely the intended result
+  // than a long one that happens to contain the word once.
+  score += Math.max(0, 5 - Math.floor(title.length / 20));
+
+  return score;
+}
+
 export type SearchTypeFilter = 'all' | 'projects' | 'docs';
 
 // Searches across every project's title/description and every section's
@@ -79,16 +108,18 @@ export function useGlobalSearch(typeFilter: SearchTypeFilter = 'all') {
       return;
     }
 
-    const projectResults: SearchResult[] = (projectsRes.data ?? []).map((p: any) => ({
+    const projectResults: (SearchResult & { _score: number })[] = (projectsRes.data ?? []).map((p: any) => ({
       type: 'project',
       id: p.id,
       title: p.title,
       snippet: p.description || 'No description',
       projectSlug: p.slug,
       projectTitle: p.title,
+      // Projects match on title/description; weight it like a title+content match.
+      _score: scoreMatch(p.title, p.description ?? '', trimmed),
     }));
 
-    const sectionResults: SearchResult[] = (sectionsRes.data ?? []).map((s: any) => ({
+    const sectionResults: (SearchResult & { _score: number })[] = (sectionsRes.data ?? []).map((s: any) => ({
       type: 'section',
       id: s.id,
       title: s.title,
@@ -96,9 +127,14 @@ export function useGlobalSearch(typeFilter: SearchTypeFilter = 'all') {
       projectSlug: s.projects?.slug ?? '',
       projectTitle: s.projects?.title ?? '',
       sectionSlug: s.slug,
+      _score: scoreMatch(s.title, s.content ?? '', trimmed),
     }));
 
-    setResults([...projectResults, ...sectionResults]);
+    const ranked = [...projectResults, ...sectionResults]
+      .sort((a, b) => b._score - a._score)
+      .map(({ _score, ...rest }) => rest);
+
+    setResults(ranked);
     setLoading(false);
   }, []);
 

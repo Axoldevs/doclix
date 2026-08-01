@@ -47,8 +47,20 @@ export function extractHeadings(source: string): HeadingItem[] {
   const lines = source.split('\n');
   const seen = new Map<string, number>();
   const headings: HeadingItem[] = [];
+  let inFence = false;
 
   for (const line of lines) {
+    const trimmed = line.trim();
+    if (/^:::(box|columns)/.test(trimmed)) {
+      inFence = true;
+      continue;
+    }
+    if (inFence && trimmed === ':::') {
+      inFence = false;
+      continue;
+    }
+    if (inFence) continue;
+
     const h3 = line.match(/^###\s+(.*)/);
     const h2 = line.match(/^##\s+(.*)/);
     const h1 = line.match(/^#\s+(.*)/);
@@ -187,8 +199,88 @@ function extractCodeBlocks(source: string): { text: string; blocks: { lang: stri
   return { text: outLines.join('\n'), blocks };
 }
 
+export const BOX_COLORS = ['violet', 'blue', 'green', 'amber', 'red', 'gray'] as const;
+export type BoxColor = (typeof BOX_COLORS)[number];
+
+const BOX_COLOR_HEX: Record<BoxColor, string> = {
+  violet: '#8b5cf6',
+  blue: '#3b82f6',
+  green: '#22c55e',
+  amber: '#f59e0b',
+  red: '#ef4444',
+  gray: '#6b7280',
+};
+
+function isBoxColor(value: string): value is BoxColor {
+  return (BOX_COLORS as readonly string[]).includes(value);
+}
+
+/**
+ * Pull ":::box" and ":::columns" fenced blocks out of the raw source BEFORE
+ * escape processing, the same way extractCodeBlocks does, so their inner
+ * content (which itself gets run back through renderMarkdown/renderInline)
+ * doesn't get double-escaped by the outer pass.
+ */
+function extractCustomBlocks(source: string): {
+  text: string;
+  boxes: { color: BoxColor; title: string; body: string }[];
+  columns: { left: string; right: string }[];
+} {
+  const lines = source.split('\n');
+  const boxes: { color: BoxColor; title: string; body: string }[] = [];
+  const columns: { left: string; right: string }[] = [];
+  const outLines: string[] = [];
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const boxOpen = line.trim().match(/^:::box(?:\s+(\S+))?(?:\s+"([^"]*)")?\s*$/);
+    const columnsOpen = /^:::columns\s*$/.test(line.trim());
+
+    if (boxOpen) {
+      const colorArg = (boxOpen[1] || '').toLowerCase();
+      const color: BoxColor = isBoxColor(colorArg) ? colorArg : 'violet';
+      const title = boxOpen[2] || '';
+      const bodyLines: string[] = [];
+      i++;
+      while (i < lines.length && lines[i].trim() !== ':::') {
+        bodyLines.push(lines[i]);
+        i++;
+      }
+      i++; // skip closing :::
+      const idx = boxes.length;
+      boxes.push({ color, title, body: bodyLines.join('\n') });
+      outLines.push(`\u0000BOX${idx}\u0000`);
+      continue;
+    }
+
+    if (columnsOpen) {
+      const bodyLines: string[] = [];
+      i++;
+      while (i < lines.length && lines[i].trim() !== ':::') {
+        bodyLines.push(lines[i]);
+        i++;
+      }
+      i++; // skip closing :::
+      const sepIdx = bodyLines.findIndex((l) => l.trim() === '---');
+      const left = sepIdx === -1 ? bodyLines.join('\n') : bodyLines.slice(0, sepIdx).join('\n');
+      const right = sepIdx === -1 ? '' : bodyLines.slice(sepIdx + 1).join('\n');
+      const idx = columns.length;
+      columns.push({ left, right });
+      outLines.push(`\u0000COLUMNS${idx}\u0000`);
+      continue;
+    }
+
+    outLines.push(line);
+    i++;
+  }
+
+  return { text: outLines.join('\n'), boxes, columns };
+}
+
 export function renderMarkdown(source: string): string {
-  const { text: withoutCode, blocks: codeBlocks } = extractCodeBlocks(source);
+  const { text: withoutCustom, boxes, columns } = extractCustomBlocks(source);
+  const { text: withoutCode, blocks: codeBlocks } = extractCodeBlocks(withoutCustom);
   const escaped = protectEscapedChars(escapeHtml(withoutCode));
   const lines = escaped.split('\n');
 
@@ -228,6 +320,38 @@ export function renderMarkdown(source: string): string {
       const block = codeBlocks[Number(codeBlockMatch[1])];
       html.push(
         `<pre><code${block.lang ? ` class="language-${block.lang}"` : ''}>${block.code}</code></pre>`
+      );
+      i++;
+      continue;
+    }
+
+    // Restored box/callout placeholder.
+    const boxMatch = line.match(/^\u0000BOX(\d+)\u0000$/);
+    if (boxMatch) {
+      flushList();
+      const box = boxes[Number(boxMatch[1])];
+      const hex = BOX_COLOR_HEX[box.color];
+      const titleHtml = box.title
+        ? `<div class="doclix-box-title">${renderInline(escapeHtml(box.title))}</div>`
+        : '';
+      html.push(
+        `<div class="doclix-box doclix-box-${box.color}" style="--doclix-box-color:${hex}">${titleHtml}${renderMarkdown(
+          box.body
+        )}</div>`
+      );
+      i++;
+      continue;
+    }
+
+    // Restored columns placeholder.
+    const columnsMatch = line.match(/^\u0000COLUMNS(\d+)\u0000$/);
+    if (columnsMatch) {
+      flushList();
+      const col = columns[Number(columnsMatch[1])];
+      html.push(
+        `<div class="doclix-columns"><div class="doclix-column">${renderMarkdown(
+          col.left
+        )}</div><div class="doclix-column">${renderMarkdown(col.right)}</div></div>`
       );
       i++;
       continue;

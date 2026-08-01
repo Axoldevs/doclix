@@ -194,7 +194,7 @@ export default function DocProjectPage() {
     reorderSections(reordered.map((s) => s.id));
   }
 
-  async function handleUpdateProject(updates: { title?: string; description?: string | null }) {
+  async function handleUpdateProject(updates: { title?: string; description?: string | null; icon_url?: string | null }) {
     const { error } = await updateProject(updates);
     if (!error) showToast('Project details updated', 'success');
     return { error };
@@ -256,7 +256,7 @@ export default function DocProjectPage() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <ProjectHeader title={project.title} />
+      <ProjectHeader title={project.title} iconUrl={project.icon_url} />
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
@@ -386,6 +386,11 @@ export default function DocProjectPage() {
                               '<p class="text-muted-foreground">This section has no content yet.</p>',
                           }}
                         />
+                        <SectionFooterNav
+                          projectSlug={project.slug}
+                          prev={prevSection}
+                          next={nextSection}
+                        />
                       </div>
                       {readerCommentsOpen && (
                         <CommentsPanel
@@ -399,14 +404,6 @@ export default function DocProjectPage() {
                   )}
                 </div>
               </div>
-
-              {!editing && (
-                <SectionFooterNav
-                  projectSlug={project.slug}
-                  prev={prevSection}
-                  next={nextSection}
-                />
-              )}
             </>
           )}
         </div>

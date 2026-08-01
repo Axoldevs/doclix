@@ -44,6 +44,7 @@ ${lastmod ? `    <lastmod>${lastmod}</lastmod>\n` : ''}    <changefreq>${changef
 const BLOG_POSTS: Array<{ slug: string; date: string }> = [
   { slug: '2026-07-10-search-was-always-the-point', date: '2026-07-10' },
   { slug: '2026-07-26-new-landing-page', date: '2026-07-26' },
+  { slug: '2026-08-01-smarter-search-and-floating-nav', date: '2026-08-01' },
 ];
 
 export const onRequestGet: PagesFunction<Env> = async ({ env }) => {

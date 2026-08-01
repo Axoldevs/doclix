@@ -129,6 +129,8 @@
      ties the UI's visual language back to the product's subject
      (structured, indexed documentation). */
   .doc-index {
+    display: inline-flex;
+    align-items: center;
     font-family: 'IBM Plex Mono', ui-monospace, monospace;
     font-size: 0.6875rem;
     font-weight: 500;
@@ -136,9 +138,13 @@
     color: hsl(var(--primary));
   }
   .doc-index::before {
-    content: '/**';
-    opacity: 0.5;
-    margin-right: 0.4em;
+    content: '';
+    width: 5px;
+    height: 5px;
+    margin-right: 0.55em;
+    border-radius: 9999px;
+    background: hsl(var(--primary));
+    opacity: 0.7;
   }
   .doc-bracket {
     font-family: 'IBM Plex Mono', ui-monospace, monospace;
@@ -341,4 +347,40 @@
 }
 .doclix-prose tr:last-child td {
   border-bottom: none;
+}
+
+/* Callout boxes: ":::box <color> "Title"" ... ":::" */
+.doclix-box {
+  border: 1px solid color-mix(in srgb, var(--doclix-box-color) 35%, transparent);
+  border-left: 3px solid var(--doclix-box-color);
+  background: color-mix(in srgb, var(--doclix-box-color) 8%, transparent);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+}
+.doclix-box > :last-child {
+  margin-bottom: 0;
+}
+.doclix-box-title {
+  font-weight: 600;
+  font-size: 0.925em;
+  color: var(--doclix-box-color);
+  margin-bottom: 0.35rem;
+}
+
+/* Columns: ":::columns" left content "---" right content ":::" */
+.doclix-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+.doclix-column > :last-child {
+  margin-bottom: 0;
+}
+@media (max-width: 640px) {
+  .doclix-columns {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
 }

@@ -35,7 +35,7 @@ export function useProject(slug: string | undefined) {
   }, [fetchProject]);
 
   const updateProject = useCallback(
-    async (updates: { title?: string; description?: string | null; slug?: string }) => {
+    async (updates: { title?: string; description?: string | null; slug?: string; icon_url?: string | null }) => {
       if (!project) return { error: 'No project loaded' };
       const { data, error } = await getSupabase()
         .from('projects')

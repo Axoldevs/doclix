@@ -9,10 +9,14 @@ create table if not exists public.projects (
   slug text unique not null,
   title text not null,
   description text,
+  icon_url text,
   owner_id uuid not null references auth.users(id) on delete cascade,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Additive migration: run this alone if `projects` already exists without icon_url.
+alter table public.projects add column if not exists icon_url text;
 
 create index if not exists projects_owner_id_idx on public.projects(owner_id);
 create index if not exists projects_slug_idx on public.projects(slug);
@@ -211,3 +215,20 @@ create policy "Signed-in users can upload section images"
 create policy "Signed-in users can delete their own section images"
   on storage.objects for delete
   using (bucket_id = 'section-images' and auth.uid() = owner);
+
+-- Public bucket for custom project icons.
+insert into storage.buckets (id, name, public)
+values ('project-icons', 'project-icons', true)
+on conflict (id) do nothing;
+
+create policy "Anyone can view project icons"
+  on storage.objects for select
+  using (bucket_id = 'project-icons');
+
+create policy "Signed-in users can upload project icons"
+  on storage.objects for insert
+  with check (bucket_id = 'project-icons' and auth.role() = 'authenticated');
+
+create policy "Signed-in users can delete their own project icons"
+  on storage.objects for delete
+  using (bucket_id = 'project-icons' and auth.uid() = owner);

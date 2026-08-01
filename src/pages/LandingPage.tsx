@@ -17,15 +17,27 @@ import { useTranslation } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/Button';
 import { useGlobalSearch } from '@/hooks/useGlobalSearch';
+import { useBlogSitemapSearch } from '@/hooks/useBlogSitemapSearch';
 import { cn } from '@/lib/utils';
 
 function LiveSearchDemo() {
-  const { query, setQuery, results, loading } = useGlobalSearch();
+  // The homepage search is a quick way to find a project or a blog post —
+  // not every doc section, that deeper search lives on /search. Blog
+  // results are sourced from the sitemap rather than section content.
+  const { query, setQuery, results: projectResults, loading: projectsLoading } = useGlobalSearch('projects');
+  const { results: blogResults, loading: blogLoading } = useBlogSitemapSearch(query);
   const navigate = useNavigate();
   const t = useTranslation();
   const [focused, setFocused] = useState(false);
 
-  function goTo(result: { projectSlug: string; sectionSlug?: string }) {
+  const results = [...projectResults, ...blogResults];
+  const loading = projectsLoading || blogLoading;
+
+  function goTo(result: { projectSlug?: string; sectionSlug?: string; slug?: string; type?: string }) {
+    if (result.type === 'blog' && result.slug) {
+      navigate(`/blog/${result.slug}`);
+      return;
+    }
     navigate(result.sectionSlug ? `/docs/${result.projectSlug}/${result.sectionSlug}` : `/docs/${result.projectSlug}`);
   }
 
@@ -89,6 +101,17 @@ function LiveSearchDemo() {
               <span className="truncate text-xs text-muted-foreground">{r.snippet}</span>
             </button>
           ))}
+          {!loading && query.trim().length >= 2 && results.length > 0 && (
+            <p className="px-3 pb-1 pt-2 text-center text-[11px] text-muted-foreground">
+              Looking for a specific doc page?{' '}
+              <span
+                onMouseDown={() => navigate(`/search?q=${encodeURIComponent(query.trim())}`)}
+                className="cursor-pointer text-primary hover:underline"
+              >
+                Search everything
+              </span>
+            </p>
+          )}
         </div>
       )}
     </div>

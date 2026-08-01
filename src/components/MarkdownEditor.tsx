@@ -38,9 +38,11 @@ import {
   Rows3,
   Columns3,
   RowsIcon,
+  Square,
+  Columns,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { renderMarkdown } from '@/lib/markdown';
+import { renderMarkdown, type BoxColor } from '@/lib/markdown';
 import { useHistory } from '@/hooks/useHistory';
 import { useAutoSave, type SaveStatus } from '@/hooks/useAutoSave';
 import { buildImportPreview, isSupportedImportFile, FileImportError } from '@/lib/fileImport';
@@ -49,11 +51,10 @@ import { LinkDialog } from '@/components/LinkDialog';
 import { TableDialog } from '@/components/TableDialog';
 import { ImageDialog } from '@/components/ImageDialog';
 import { CodeBlockDialog } from '@/components/CodeBlockDialog';
+import { BoxDialog } from '@/components/BoxDialog';
 import { HistoryDialog } from '@/components/HistoryDialog';
 import { CommentsPanel } from '@/components/CommentsPanel';
 import { TocPanel } from '@/components/TocPanel';
-import { SlashMenu, filterSlashCommands, type SlashCommand } from '@/components/SlashMenu';
-import { getCaretCoordinates } from '@/lib/caretCoordinates';
 import { addTableRow, removeTableRow, addTableColumn, removeTableColumn, findTableAtCursor } from '@/lib/tableOps';
 
 type ViewMode = 'edit' | 'split' | 'preview';
@@ -121,13 +122,6 @@ function saveStatusLabel(status: SaveStatus) {
   }
 }
 
-interface SlashState {
-  lineStart: number;
-  query: string;
-  top: number;
-  left: number;
-}
-
 export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, isOwner }: MarkdownEditorProps) {
   const { value, setValue, undo, redo, reset, canUndo, canRedo } = useHistory(initialContent);
   const [viewMode, setViewMode] = useState<ViewMode>(readOnly ? 'preview' : 'split');
@@ -142,33 +136,16 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
   const [tableDialogOpen, setTableDialogOpen] = useState(false);
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [codeDialogOpen, setCodeDialogOpen] = useState(false);
+  const [boxDialogOpen, setBoxDialogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
 
-  const [slashState, setSlashState] = useState<SlashState | null>(null);
-  const [slashActiveIndex, setSlashActiveIndex] = useState(0);
   const [tableContext, setTableContext] = useState(false);
 
   useEffect(() => {
     reset(initialContent);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialContent]);
-
-  useEffect(() => {
-    setSlashActiveIndex(0);
-  }, [slashState?.query]);
-
-  // Close the slash menu on outside clicks.
-  useEffect(() => {
-    if (!slashState) return;
-    function handleClick(e: MouseEvent) {
-      if (editorWrapRef.current && !editorWrapRef.current.contains(e.target as Node)) {
-        setSlashState(null);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [slashState]);
 
   const applyTransform = useCallback(
     (transform: (ta: HTMLTextAreaElement) => Transform) => {
@@ -187,20 +164,6 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
 
   function updateTableContext(ta: HTMLTextAreaElement) {
     setTableContext(!!findTableAtCursor(ta.value, ta.selectionStart));
-  }
-
-  function updateSlashState(ta: HTMLTextAreaElement) {
-    const pos = ta.selectionStart;
-    const val = ta.value;
-    const lineStart = val.lastIndexOf('\n', pos - 1) + 1;
-    const linePrefix = val.slice(lineStart, pos);
-    const match = linePrefix.match(/^\/([a-zA-Z0-9]*)$/);
-    if (match) {
-      const coords = getCaretCoordinates(ta, pos);
-      setSlashState({ lineStart, query: match[1], top: coords.top + coords.height + 4, left: coords.left });
-    } else {
-      setSlashState(null);
-    }
   }
 
   const handleFileUpload = useCallback(
@@ -268,6 +231,31 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
     applyTransform((ta) => insertBlockAtCursor(ta, `\`\`\`${language}\n\n\`\`\``));
   }
 
+  function handleBoxConfirm(color: BoxColor, boxTitle: string) {
+    const titlePart = boxTitle ? ` "${boxTitle}"` : '';
+    applyTransform((ta) => {
+      const { selectionStart, selectionEnd, value: v } = ta;
+      const selected = v.slice(selectionStart, selectionEnd) || 'Type your content here.';
+      const block = `:::box ${color}${titlePart}\n${selected}\n:::`;
+      return insertBlockAtCursor(ta, block);
+    });
+  }
+
+  function insertColumns() {
+    // Wraps the current selection (e.g. a few selected lines) as the left
+    // column of a two-column block, leaving the right column as a
+    // placeholder to fill in. Works on any amount of selected text, down to
+    // a single line.
+    applyTransform((ta) => {
+      const { selectionStart, selectionEnd, value: v } = ta;
+      const selected = v.slice(selectionStart, selectionEnd);
+      const left = selected || 'Left column';
+      const right = 'Right column';
+      const block = `:::columns\n${left}\n---\n${right}\n:::`;
+      return insertBlockAtCursor(ta, block);
+    });
+  }
+
   async function handleRestoreRevision(content: string) {
     reset(content);
     const { error } = await onSave(content);
@@ -288,59 +276,8 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
     });
   }
 
-  function handleSlashSelect(command: SlashCommand) {
-    if (!slashState) return;
-    const { lineStart } = slashState;
-    setSlashState(null);
-
-    const simplePrefix: Record<string, string> = {
-      h1: '# ',
-      h2: '## ',
-      h3: '### ',
-      bullet: '- ',
-      numbered: '1. ',
-      quote: '> ',
-    };
-
-    if (command.id in simplePrefix) {
-      applyTransform((ta) => {
-        const { value: v, selectionStart } = ta;
-        const prefix = simplePrefix[command.id];
-        const newValue = v.slice(0, lineStart) + prefix + v.slice(selectionStart);
-        const pos = lineStart + prefix.length;
-        return { newValue, cursorStart: pos, cursorEnd: pos };
-      });
-      return;
-    }
-
-    if (command.id === 'divider') {
-      applyTransform((ta) => {
-        const { value: v, selectionStart } = ta;
-        const newValue = v.slice(0, lineStart) + '---\n' + v.slice(selectionStart);
-        const pos = lineStart + 4;
-        return { newValue, cursorStart: pos, cursorEnd: pos };
-      });
-      return;
-    }
-
-    // For table/code/link/image: remove the trigger text, then open the dialog.
-    applyTransform((ta) => {
-      const { value: v, selectionStart } = ta;
-      const newValue = v.slice(0, lineStart) + v.slice(selectionStart);
-      return { newValue, cursorStart: lineStart, cursorEnd: lineStart };
-    });
-
-    if (command.id === 'table') setTableDialogOpen(true);
-    else if (command.id === 'code') setCodeDialogOpen(true);
-    else if (command.id === 'link') {
-      setLinkInitialText('');
-      setLinkDialogOpen(true);
-    } else if (command.id === 'image') setImageDialogOpen(true);
-  }
-
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setValue(e.target.value);
-    updateSlashState(e.target);
     updateTableContext(e.target);
   };
 
@@ -352,38 +289,38 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     const mod = e.metaKey || e.ctrlKey;
 
-    // Slash menu keyboard navigation takes priority.
-    if (slashState) {
-      const results = filterSlashCommands(slashState.query);
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSlashActiveIndex((i) => (i + 1) % Math.max(results.length, 1));
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSlashActiveIndex((i) => (i - 1 + results.length) % Math.max(results.length, 1));
-        return;
-      }
-      if (e.key === 'Enter' || e.key === 'Tab') {
-        e.preventDefault();
-        const chosen = results[slashActiveIndex];
-        if (chosen) handleSlashSelect(chosen);
-        return;
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        setSlashState(null);
-        return;
-      }
-    }
-
     // List / quote auto-continue on Enter.
     if (e.key === 'Enter' && !mod && !e.shiftKey) {
       const ta = e.currentTarget;
       const { selectionStart, selectionEnd, value: v } = ta;
       const lineStart = v.lastIndexOf('\n', selectionStart - 1) + 1;
       const lineUpToCursor = v.slice(lineStart, selectionStart);
+
+      // Symbol trigger: a line containing only ":::" expands into a full
+      // box block, with the placeholder content pre-selected so typing
+      // immediately replaces it. This is the "type a symbol" way to create
+      // a box, as an alternative to the toolbar button/dialog.
+      if (lineUpToCursor.trim() === ':::' && selectionStart === selectionEnd) {
+        let lineEnd = v.indexOf('\n', selectionStart);
+        if (lineEnd === -1) lineEnd = v.length;
+        const restOfLine = v.slice(selectionStart, lineEnd);
+        if (restOfLine.trim() === '') {
+          e.preventDefault();
+          const placeholder = 'Type your content here.';
+          const openFence = ':::box violet\n';
+          applyTransform((taInner) => {
+            const { value: vv } = taInner;
+            const before = vv.slice(0, lineStart);
+            const after = vv.slice(lineEnd);
+            const block = `${openFence}${placeholder}\n:::`;
+            const newValue = before + block + after;
+            const contentStart = before.length + openFence.length;
+            const contentEnd = contentStart + placeholder.length;
+            return { newValue, cursorStart: contentStart, cursorEnd: contentEnd };
+          });
+          return;
+        }
+      }
 
       const bulletMatch = lineUpToCursor.match(/^(\s*)([-*])\s+/);
       const numberedMatch = lineUpToCursor.match(/^(\s*)(\d+)\.\s+/);
@@ -419,7 +356,7 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
       }
     }
 
-    if (e.key === 'Tab' && !mod && !slashState) {
+    if (e.key === 'Tab' && !mod) {
       e.preventDefault();
       applyTransform((ta) => {
         const { selectionStart, selectionEnd, value: v } = ta;
@@ -485,6 +422,8 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
     { icon: ImagePlus, label: 'Image', action: () => setImageDialogOpen(true) },
     { icon: Table2, label: 'Table', action: () => setTableDialogOpen(true) },
     { icon: Code2, label: 'Code block', action: () => setCodeDialogOpen(true) },
+    { icon: Square, label: 'Box', action: () => setBoxDialogOpen(true) },
+    { icon: Columns, label: 'Columns', action: insertColumns },
   ];
 
   const tableToolButtons = [
@@ -690,23 +629,13 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
                 onClick={handleClickOrKeyUp}
                 onKeyUp={handleClickOrKeyUp}
                 readOnly={readOnly}
-                placeholder="Start writing… Type / for commands, or use the toolbar. Supports **bold**, tables, [links](url), and more."
+                placeholder="Start writing… Use the toolbar, or type ::: for a box. Supports **bold**, tables, [links](url), and more."
                 className={cn(
                   'h-full w-full resize-none overflow-y-auto scrollbar-thin bg-transparent p-4 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none',
                   viewMode === 'split' && 'border-r border-border'
                 )}
                 spellCheck={false}
               />
-              {slashState && (
-                <SlashMenu
-                  top={slashState.top}
-                  left={slashState.left}
-                  query={slashState.query}
-                  activeIndex={slashActiveIndex}
-                  onSelect={handleSlashSelect}
-                  onHover={setSlashActiveIndex}
-                />
-              )}
             </div>
           )}
           {viewMode !== 'edit' && (
@@ -741,6 +670,7 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
       <TableDialog open={tableDialogOpen} onOpenChange={setTableDialogOpen} onConfirm={handleTableConfirm} />
       <ImageDialog open={imageDialogOpen} onOpenChange={setImageDialogOpen} onConfirm={handleImageConfirm} />
       <CodeBlockDialog open={codeDialogOpen} onOpenChange={setCodeDialogOpen} onConfirm={handleCodeConfirm} />
+      <BoxDialog open={boxDialogOpen} onOpenChange={setBoxDialogOpen} onConfirm={handleBoxConfirm} />
       {sectionId && (
         <HistoryDialog
           open={historyOpen}

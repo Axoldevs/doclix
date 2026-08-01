@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Trash2, AlertTriangle, Save } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Trash2, AlertTriangle, Save, Upload, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Textarea } from '@/components/ui/Textarea';
+import { ProjectIcon } from '@/components/ProjectIcon';
+import { useAuth } from '@/contexts/AuthContext';
+import { uploadProjectIcon, ImageUploadError } from '@/lib/imageUpload';
 import type { Project, Section } from '@/types/database';
 
 interface ProjectSettingsDialogProps {
@@ -22,7 +25,7 @@ interface ProjectSettingsDialogProps {
   onRenameSection: (id: string, title: string) => Promise<{ error: string | null }>;
   onDeleteSection: (id: string) => Promise<{ error: string | null }>;
   onDeleteProject: () => Promise<{ error: string | null }>;
-  onUpdateProject: (updates: { title?: string; description?: string | null }) => Promise<{ error: string | null }>;
+  onUpdateProject: (updates: { title?: string; description?: string | null; icon_url?: string | null }) => Promise<{ error: string | null }>;
 }
 
 export function ProjectSettingsDialog({
@@ -42,10 +45,13 @@ export function ProjectSettingsDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { user } = useAuth();
   const [projectTitle, setProjectTitle] = useState(project.title);
   const [projectDescription, setProjectDescription] = useState(project.description ?? '');
   const [savingProject, setSavingProject] = useState(false);
   const [projectSaved, setProjectSaved] = useState(false);
+  const [uploadingIcon, setUploadingIcon] = useState(false);
+  const iconInputRef = useRef<HTMLInputElement>(null);
 
   const projectDirty = projectTitle !== project.title || projectDescription !== (project.description ?? '');
 
@@ -72,6 +78,32 @@ export function ProjectSettingsDialog({
       setProjectSaved(true);
       setTimeout(() => setProjectSaved(false), 2000);
     }
+  }
+
+  async function handleIconSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !user) return;
+
+    setUploadingIcon(true);
+    setError(null);
+    try {
+      const url = await uploadProjectIcon(file, user.id);
+      const { error } = await onUpdateProject({ icon_url: url });
+      if (error) setError(error);
+    } catch (err) {
+      setError(err instanceof ImageUploadError ? err.message : 'Failed to upload icon.');
+    } finally {
+      setUploadingIcon(false);
+    }
+  }
+
+  async function handleRemoveIcon() {
+    setUploadingIcon(true);
+    setError(null);
+    const { error } = await onUpdateProject({ icon_url: null });
+    if (error) setError(error);
+    setUploadingIcon(false);
   }
 
   function startEdit(section: Section) {
@@ -118,6 +150,43 @@ export function ProjectSettingsDialog({
         )}
 
         <div className="mb-6 flex flex-col gap-3 rounded-lg border border-border p-4">
+          <div className="flex items-center gap-3">
+            <ProjectIcon iconUrl={project.icon_url} size="lg" />
+            <div className="flex flex-col gap-1">
+              <Label>Project icon</Label>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => iconInputRef.current?.click()}
+                  loading={uploadingIcon}
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  {project.icon_url ? 'Replace icon' : 'Upload icon'}
+                </Button>
+                {project.icon_url && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveIcon}
+                    disabled={uploadingIcon}
+                    className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors duration-200 hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
+                    title="Remove icon"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <input
+                  ref={iconInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+                  className="hidden"
+                  onChange={handleIconSelected}
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">PNG, JPG, GIF, WEBP, or SVG. Falls back to the default icon if none is set.</p>
+            </div>
+          </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="project-title">Project name</Label>
             <Input

@@ -75,7 +75,7 @@ export default function SearchResultsPage() {
 
       <div className="mx-auto w-full max-w-4xl px-4 pb-16 pt-8 sm:px-6">
         {/* Search bar */}
-        <form onSubmit={handleSubmit} className="mb-5 flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 shadow-sm">
+        <form onSubmit={handleSubmit} className="mb-5 flex items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm transition-shadow duration-200 focus-within:shadow-md focus-within:border-primary/40">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
           <input
             autoFocus
@@ -165,22 +165,22 @@ export default function SearchResultsPage() {
                 key={`${r.type}-${r.id}`}
                 onClick={() => goTo(r)}
                 className={cn(
-                  'flex flex-col items-start gap-1.5 text-left transition-colors duration-150',
+                  'flex flex-col items-start gap-1.5 text-left transition-all duration-200',
                   view === 'grid'
-                    ? 'rounded-lg border border-border bg-card p-4 hover:border-primary/40 hover:bg-secondary/40'
-                    : 'py-4 hover:bg-secondary/30'
+                    ? 'rounded-lg border border-border bg-card p-4 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-secondary/40 hover:shadow-md'
+                    : 'rounded-lg py-4 pl-3 pr-2 hover:bg-secondary/30'
                 )}
               >
-                <span className="flex items-center gap-2 text-sm font-medium">
+                <span className="flex w-full items-center gap-2 text-sm font-medium">
                   {r.type === 'project' ? (
                     <BookOpen className="h-3.5 w-3.5 shrink-0 text-primary" />
                   ) : (
                     <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   )}
-                  {r.title}
+                  <span className="truncate">{r.title}</span>
                   {r.type === 'section' && (
-                    <span className="truncate text-xs font-normal text-muted-foreground">
-                      in {r.projectTitle}
+                    <span className="ml-auto shrink-0 truncate text-xs font-normal text-muted-foreground">
+                      {r.projectTitle}
                     </span>
                   )}
                 </span>

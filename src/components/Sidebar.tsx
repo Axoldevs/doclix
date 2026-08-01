@@ -33,6 +33,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { Project, Section } from '@/types/database';
 import { Button } from '@/components/ui/Button';
+import { ProjectIcon } from '@/components/ProjectIcon';
 
 interface SidebarProps {
   project: Project;
@@ -296,7 +297,8 @@ export function Sidebar({
   const content = (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-4">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <ProjectIcon iconUrl={project.icon_url} size="sm" />
           <button
             onClick={() => navigate(`/docs/${project.slug}`)}
             className="truncate text-left text-sm font-semibold text-foreground hover:text-primary"
@@ -354,6 +356,18 @@ export function Sidebar({
           </Button>
         </div>
       )}
+
+      <div className="border-t border-border px-4 py-2.5">
+        <a
+          href="https://doclix.pages.dev"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-muted-foreground/70 transition-colors duration-200 hover:text-primary"
+        >
+          Powered by
+          <span className="font-display font-semibold tracking-tight">DOCLIX</span>
+        </a>
+      </div>
     </div>
   );
 

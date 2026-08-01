@@ -7,6 +7,7 @@ export interface Database {
           slug: string;
           title: string;
           description: string | null;
+          icon_url: string | null;
           owner_id: string;
           created_at: string;
           updated_at: string;
@@ -16,6 +17,7 @@ export interface Database {
           slug: string;
           title: string;
           description?: string | null;
+          icon_url?: string | null;
           owner_id: string;
           created_at?: string;
           updated_at?: string;
@@ -25,6 +27,7 @@ export interface Database {
           slug?: string;
           title?: string;
           description?: string | null;
+          icon_url?: string | null;
           owner_id?: string;
           created_at?: string;
           updated_at?: string;

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, BookOpen, Trash2, FileStack } from 'lucide-react';
+import { Plus, Trash2, FileStack } from 'lucide-react';
 import { ProjectHeader } from '@/components/ProjectHeader';
+import { ProjectIcon } from '@/components/ProjectIcon';
 import { CreateProjectDialog } from '@/components/CreateProjectDialog';
 import { Button } from '@/components/ui/Button';
 import { useProjects } from '@/hooks/useProjects';
@@ -67,9 +68,7 @@ export default function DashboardPage() {
                 className="group relative flex flex-col rounded-lg border border-border bg-card p-5 transition-colors duration-200 hover:border-primary/40"
               >
                 <Link to={`/docs/${project.slug}`} className="flex flex-1 flex-col">
-                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-md border border-primary/25 bg-primary/10">
-                    <BookOpen className="h-4 w-4 text-primary" />
-                  </div>
+                  <ProjectIcon iconUrl={project.icon_url} size="md" className="mb-3" />
                   <h3 className="font-display font-medium">{project.title}</h3>
                   <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
                     {project.description || 'No description'}
