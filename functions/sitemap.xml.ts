@@ -75,12 +75,26 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
         Authorization: `Bearer ${supabaseAnonKey}`,
       };
 
+      // Guard against a slow/hanging Supabase response stalling the whole
+      // function (Cloudflare Pages Functions can hang until the platform's
+      // own execution limit kills them, which can make crawlers like
+      // Googlebot see the fetch as failed entirely). Bail out to the
+      // static-only sitemap after 3s instead.
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+
       const [projectsRes, sectionsRes] = await Promise.all([
-        fetch(`${supabaseUrl}/rest/v1/projects?select=slug,updated_at`, { headers }),
+        fetch(`${supabaseUrl}/rest/v1/projects?select=slug,updated_at`, {
+          headers,
+          signal: controller.signal,
+        }),
         fetch(`${supabaseUrl}/rest/v1/sections?select=slug,updated_at,projects!inner(slug)`, {
           headers,
+          signal: controller.signal,
         }),
       ]);
+
+      clearTimeout(timeout);
 
       if (projectsRes.ok) {
         const projects: Array<{ slug: string; updated_at?: string }> = await projectsRes.json();

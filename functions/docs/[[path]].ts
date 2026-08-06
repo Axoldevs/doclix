@@ -6,15 +6,26 @@
 // HTML/app shell. This is the machine-readable counterpart advertised
 // in /llms.txt, for AI crawlers and LLM tools that want plain content.
 //
-// Any /docs/* request NOT ending in ".md" falls through untouched, so
-// the normal React app (DocProjectPage) continues to serve human
-// visitors at /docs/:projectSlug and /docs/:projectSlug/:sectionSlug.
+// Any /docs/* request NOT ending in ".md" falls through to renderDocShell,
+// which now does two things instead of just meta-tag swapping:
+//   1. real per-page <title>/<meta description>/OG tags (as before)
+//   2. the active section's Markdown, rendered server-side with the same
+//      renderMarkdown() the client uses, injected straight into #root
+// so a phone on 3G gets actual readable content in the first HTML
+// response — no waiting on the JS bundle to download, parse, fetch
+// runtime config, fetch data, and render. React still boots normally
+// afterwards and replaces #root's contents with the live app (via
+// createRoot, not hydrateRoot, so this is a plain swap, not a hydration
+// mismatch) — the pre-rendered markup is purely a fast-paint placeholder
+// that happens to be the real content instead of a blank div or spinner.
 //
 // A single [[path]].ts catch-all is used rather than filename-based
 // dynamic segments like "[projectSlug].md.ts", because Cloudflare Pages'
 // file-based routing only reliably strips the outer ".ts" extension —
 // baking a literal ".md" into the routed path via the filename isn't a
 // documented, guaranteed pattern. Parsing the path ourselves is robust.
+
+import { renderMarkdown } from '../../src/lib/markdown';
 
 interface Env {
   SUPABASE_URL?: string;
@@ -84,27 +95,49 @@ async function renderDocShell(
     let description = project.description ? truncateDescription(project.description) : `${project.title} documentation on DOCLIX.`;
     const canonicalPath = sectionSlug ? `/docs/${projectSlug}/${sectionSlug}` : `/docs/${projectSlug}`;
 
-    if (sectionSlug) {
-      const sectionRes = await fetch(
-        `${supabaseUrl}/rest/v1/sections?project_id=eq.${project.id}&slug=eq.${encodeURIComponent(
-          sectionSlug
-        )}&select=title,content`,
-        { headers }
-      );
-      if (sectionRes.ok) {
-        const sectionsData: Array<{ title: string; content: string }> = await sectionRes.json();
-        const section = sectionsData[0];
-        if (section) {
-          pageTitle = `${section.title} | ${project.title} | DOCLIX`;
-          const plainText = (section.content ?? '')
-            .replace(/```[\s\S]*?```/g, ' ')
-            .replace(/[#*`_>\-\[\]()!]/g, ' ');
-          description = plainText.trim() ? truncateDescription(plainText) : description;
+    // Fetch whichever section should render: the requested one, or (when
+    // no sectionSlug is in the URL) the project's first section — same
+    // "default to sections[0]" rule DocProjectPage uses client-side, so
+    // the pre-rendered content matches what React would show anyway.
+    let renderedContentHtml = '';
+    const sectionFilter = sectionSlug
+      ? `project_id=eq.${project.id}&slug=eq.${encodeURIComponent(sectionSlug)}`
+      : `project_id=eq.${project.id}&order=position.asc&limit=1`;
+    const sectionRes = await fetch(
+      `${supabaseUrl}/rest/v1/sections?${sectionFilter}&select=title,content`,
+      { headers }
+    );
+    if (sectionRes.ok) {
+      const sectionsData: Array<{ title: string; content: string }> = await sectionRes.json();
+      const section = sectionsData[0];
+      if (section) {
+        pageTitle = `${section.title} | ${project.title} | DOCLIX`;
+        const plainText = (section.content ?? '')
+          .replace(/```[\s\S]*?```/g, ' ')
+          .replace(/[#*`_>\-\[\]()!]/g, ' ');
+        description = plainText.trim() ? truncateDescription(plainText) : description;
+
+        try {
+          renderedContentHtml =
+            renderMarkdown(section.content ?? '') ||
+            '<p class="text-muted-foreground">This section has no content yet.</p>';
+        } catch {
+          // If rendering fails for any reason, fall back to no
+          // pre-rendered content rather than breaking the whole page —
+          // React will still fill it in client-side as before.
+          renderedContentHtml = '';
         }
       }
     }
 
     let html = await shellRes.text();
+
+    if (renderedContentHtml) {
+      html = html.replace(
+        '<div id="root"></div>',
+        `<div id="root"><div class="doclix-prerender"><div class="doclix-prose" data-no-translate>${renderedContentHtml}</div></div></div>`
+      );
+    }
     html = html
       .replace(/<title>.*?<\/title>/s, `<title>${htmlEscape(pageTitle)}</title>`)
       .replace(

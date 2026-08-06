@@ -1,15 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Pencil, Eye, Plus, MessageSquare } from 'lucide-react';
 import { ProjectHeader } from '@/components/ProjectHeader';
 import { Sidebar } from '@/components/Sidebar';
 import { SectionFooterNav } from '@/components/SectionFooterNav';
-import { MarkdownEditor } from '@/components/MarkdownEditor';
 import { TocPanel } from '@/components/TocPanel';
-import { CommentsPanel } from '@/components/CommentsPanel';
-import { AddSectionDialog } from '@/components/AddSectionDialog';
-import { ProjectSettingsDialog } from '@/components/ProjectSettingsDialog';
-import { DuplicateToProjectDialog } from '@/components/DuplicateToProjectDialog';
 import { TranslateButton } from '@/components/TranslateButton';
 import { Button } from '@/components/ui/Button';
 import { FullPageSpinner, ErrorBanner, EmptyState } from '@/components/StateViews';
@@ -22,6 +17,37 @@ import { getPreferredLanguage, translateText } from '@/lib/translate';
 import { renderMarkdown } from '@/lib/markdown';
 import { slugify, cn } from '@/lib/utils';
 import type { Section } from '@/types/database';
+
+// These five are all owner/editing-only surfaces -- a reader just viewing
+// docs (the overwhelming majority of traffic, and everyone hitting the
+// pre-rendered SSR-ish HTML from functions/docs/[[path]].ts) never
+// triggers any of them, so their code shouldn't be in the initial bundle.
+// Each is already conditionally mounted (editing state, dialog `open`
+// props, panel toggles), so lazy() + a lightweight Suspense fallback is a
+// drop-in swap with no behavior change for owners.
+const MarkdownEditor = lazy(() =>
+  import('@/components/MarkdownEditor').then((m) => ({ default: m.MarkdownEditor }))
+);
+const CommentsPanel = lazy(() =>
+  import('@/components/CommentsPanel').then((m) => ({ default: m.CommentsPanel }))
+);
+const AddSectionDialog = lazy(() =>
+  import('@/components/AddSectionDialog').then((m) => ({ default: m.AddSectionDialog }))
+);
+const ProjectSettingsDialog = lazy(() =>
+  import('@/components/ProjectSettingsDialog').then((m) => ({ default: m.ProjectSettingsDialog }))
+);
+const DuplicateToProjectDialog = lazy(() =>
+  import('@/components/DuplicateToProjectDialog').then((m) => ({ default: m.DuplicateToProjectDialog }))
+);
+
+function PanelLoading() {
+  return (
+    <div className="flex items-center justify-center p-6">
+      <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-primary" />
+    </div>
+  );
+}
 
 export default function DocProjectPage() {
   const { projectSlug, sectionSlug } = useParams();
@@ -365,13 +391,15 @@ export default function DocProjectPage() {
 
                   {editing && isOwner ? (
                     <div className="flex-1 overflow-hidden">
-                      <MarkdownEditor
-                        key={activeSection.id}
-                        initialContent={activeSection.content}
-                        onSave={handleSaveContent}
-                        sectionId={activeSection.id}
-                        isOwner={isOwner}
-                      />
+                      <Suspense fallback={<PanelLoading />}>
+                        <MarkdownEditor
+                          key={activeSection.id}
+                          initialContent={activeSection.content}
+                          onSave={handleSaveContent}
+                          sectionId={activeSection.id}
+                          isOwner={isOwner}
+                        />
+                      </Suspense>
                     </div>
                   ) : (
                     <div className="flex flex-1 gap-4 overflow-hidden">
@@ -393,12 +421,14 @@ export default function DocProjectPage() {
                         />
                       </div>
                       {readerCommentsOpen && (
-                        <CommentsPanel
-                          open={readerCommentsOpen}
-                          onClose={() => setReaderCommentsOpen(false)}
-                          sectionId={activeSection.id}
-                          isOwner={isOwner}
-                        />
+                        <Suspense fallback={<PanelLoading />}>
+                          <CommentsPanel
+                            open={readerCommentsOpen}
+                            onClose={() => setReaderCommentsOpen(false)}
+                            sectionId={activeSection.id}
+                            isOwner={isOwner}
+                          />
+                        </Suspense>
                       )}
                     </div>
                   )}
@@ -409,39 +439,47 @@ export default function DocProjectPage() {
         </div>
       </div>
 
-      <AddSectionDialog
-        open={addDialogOpen}
-        onOpenChange={(open) => {
-          setAddDialogOpen(open);
-          if (!open) setInsertAfterSection(null);
-        }}
-        onCreate={handleCreateSection}
-        onCreateMultiple={handleCreateMultipleSections}
-        insertAfterTitle={insertAfterSection?.title ?? null}
-      />
+      {/* Owner-only dialogs. Gated on isOwner (not just their `open` prop)
+          so readers -- everyone hitting the pre-rendered doc HTML -- never
+          trigger these lazy imports at all; a reader can never open them
+          anyway since the buttons that would are themselves owner-gated. */}
+      {isOwner && (
+        <Suspense fallback={null}>
+          <AddSectionDialog
+            open={addDialogOpen}
+            onOpenChange={(open) => {
+              setAddDialogOpen(open);
+              if (!open) setInsertAfterSection(null);
+            }}
+            onCreate={handleCreateSection}
+            onCreateMultiple={handleCreateMultipleSections}
+            insertAfterTitle={insertAfterSection?.title ?? null}
+          />
 
-      <ProjectSettingsDialog
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        project={project}
-        sections={sections}
-        onRenameSection={handleRenameSection}
-        onDeleteSection={handleDeleteSection}
-        onDeleteProject={handleDeleteProject}
-        onUpdateProject={handleUpdateProject}
-      />
+          <ProjectSettingsDialog
+            open={settingsOpen}
+            onOpenChange={setSettingsOpen}
+            project={project}
+            sections={sections}
+            onRenameSection={handleRenameSection}
+            onDeleteSection={handleDeleteSection}
+            onDeleteProject={handleDeleteProject}
+            onUpdateProject={handleUpdateProject}
+          />
 
-      <DuplicateToProjectDialog
-        open={!!duplicateToProjectSection}
-        onOpenChange={(open) => {
-          if (!open) setDuplicateToProjectSection(null);
-        }}
-        section={duplicateToProjectSection}
-        currentProjectId={project.id}
-        onDuplicated={(targetProject) => {
-          showToast(`Duplicated into "${targetProject.title}"`, 'success');
-        }}
-      />
+          <DuplicateToProjectDialog
+            open={!!duplicateToProjectSection}
+            onOpenChange={(open) => {
+              if (!open) setDuplicateToProjectSection(null);
+            }}
+            section={duplicateToProjectSection}
+            currentProjectId={project.id}
+            onDuplicated={(targetProject) => {
+              showToast(`Duplicated into "${targetProject.title}"`, 'success');
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
