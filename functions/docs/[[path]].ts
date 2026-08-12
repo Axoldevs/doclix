@@ -119,7 +119,7 @@ async function renderDocShell(
 
         try {
           renderedContentHtml =
-            renderMarkdown(section.content ?? '') ||
+            renderMarkdown(section.content ?? '', projectSlug) ||
             '<p class="text-muted-foreground">This section has no content yet.</p>';
         } catch {
           // If rendering fails for any reason, fall back to no

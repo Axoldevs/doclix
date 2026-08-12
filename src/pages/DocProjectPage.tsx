@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Pencil, Eye, Plus, MessageSquare } from 'lucide-react';
 import { ProjectHeader } from '@/components/ProjectHeader';
@@ -15,6 +15,7 @@ import { useSections } from '@/hooks/useSections';
 import { getSupabase } from '@/lib/supabase';
 import { getPreferredLanguage, translateText } from '@/lib/translate';
 import { renderMarkdown } from '@/lib/markdown';
+import { hydrateDoclixContent } from '@/lib/hydrateDoclixContent';
 import { slugify, cn } from '@/lib/utils';
 import type { Section } from '@/types/database';
 
@@ -82,6 +83,7 @@ export default function DocProjectPage() {
   const [insertAfterSection, setInsertAfterSection] = useState<Section | null>(null);
   const [duplicateToProjectSection, setDuplicateToProjectSection] = useState<Section | null>(null);
   const [readerCommentsOpen, setReaderCommentsOpen] = useState(false);
+  const readerContentRef = useRef<HTMLDivElement>(null);
 
   const isOwner = Boolean(user && project && user.id === project.owner_id);
 
@@ -126,6 +128,12 @@ export default function DocProjectPage() {
       cancelled = true;
     };
   }, [activeSection?.id]);
+
+  useEffect(() => {
+    const el = readerContentRef.current;
+    if (!el) return;
+    return hydrateDoclixContent(el);
+  }, [activeSection?.id, translatedContent, editing]);
 
   if (projectLoading) return <FullPageSpinner label="Loading project…" />;
 
@@ -406,11 +414,12 @@ export default function DocProjectPage() {
                       <div className="flex-1 overflow-y-auto scrollbar-thin">
                         <TocPanel content={translatedContent ?? activeSection.content} className="mb-4" />
                         <div
+                          ref={readerContentRef}
                           className="doclix-prose"
                           data-no-translate
                           dangerouslySetInnerHTML={{
                             __html:
-                              renderMarkdown(translatedContent ?? activeSection.content) ||
+                              renderMarkdown(translatedContent ?? activeSection.content, project.slug) ||
                               '<p class="text-muted-foreground">This section has no content yet.</p>',
                           }}
                         />
