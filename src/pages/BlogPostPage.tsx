@@ -1,20 +1,11 @@
-import { useEffect, useRef } from 'react';
 import { Link, useParams, Navigate } from 'react-router-dom';
 import { BookOpen, ArrowLeft } from 'lucide-react';
 import { getPostBySlug, formatPostDate } from '@/lib/blog';
 import { renderMarkdown } from '@/lib/markdown';
-import { hydrateDoclixContent } from '@/lib/hydrateDoclixContent';
 
 export default function BlogPostPage() {
   const { postSlug } = useParams<{ postSlug: string }>();
   const post = getPostBySlug(postSlug ?? '');
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = contentRef.current;
-    if (!el) return;
-    return hydrateDoclixContent(el);
-  }, [post?.slug]);
 
   if (!post) {
     return <Navigate to="/blog" replace />;
@@ -46,7 +37,6 @@ export default function BlogPostPage() {
           <h1 className="font-display mt-1.5 text-3xl font-semibold tracking-tight sm:text-4xl">{post.title}</h1>
 
           <div
-            ref={contentRef}
             className="doclix-prose mt-8 text-[0.95rem] text-foreground/90"
             dangerouslySetInnerHTML={{ __html: renderMarkdown(post.content) }}
           />

@@ -40,14 +40,9 @@ import {
   RowsIcon,
   Square,
   Columns,
-  Layers,
-  ChevronDown,
-  PanelsTopLeft,
-  Info,
-  Link as LinkIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { renderMarkdown, type BoxColor, type CalloutKind } from '@/lib/markdown';
+import { renderMarkdown, type BoxColor } from '@/lib/markdown';
 import { useHistory } from '@/hooks/useHistory';
 import { useAutoSave, type SaveStatus } from '@/hooks/useAutoSave';
 import { buildImportPreview, isSupportedImportFile, FileImportError } from '@/lib/fileImport';
@@ -61,7 +56,6 @@ import { HistoryDialog } from '@/components/HistoryDialog';
 import { CommentsPanel } from '@/components/CommentsPanel';
 import { TocPanel } from '@/components/TocPanel';
 import { addTableRow, removeTableRow, addTableColumn, removeTableColumn, findTableAtCursor } from '@/lib/tableOps';
-import { hydrateDoclixContent } from '@/lib/hydrateDoclixContent';
 
 type ViewMode = 'edit' | 'split' | 'preview';
 
@@ -147,31 +141,11 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
   const [commentsOpen, setCommentsOpen] = useState(false);
 
   const [tableContext, setTableContext] = useState(false);
-  const previewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const el = previewRef.current;
-    if (!el) return;
-    return hydrateDoclixContent(el);
-  }, [value, viewMode]);
-
-  // Only reset the editor's internal buffer when we're actually switching to
-  // a *different* section (tracked by sectionId), or on first mount. Do NOT
-  // reset merely because `initialContent` changed reference/value — that
-  // happens on every autosave round-trip (the parent refetches the row from
-  // Supabase and passes a fresh `activeSection.content` string down), and
-  // resetting here would discard in-flight edits and snap the textarea's
-  // value — and with it the caret — back to whatever was last saved. The
-  // editor is the source of truth for its own buffer once mounted; the
-  // "initialContent" prop only matters for the very first paint of a given
-  // section.
-  const lastLoadedSectionRef = useRef<string | undefined>(sectionId);
-  useEffect(() => {
-    if (lastLoadedSectionRef.current === sectionId) return;
-    lastLoadedSectionRef.current = sectionId;
     reset(initialContent);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sectionId]);
+  }, [initialContent]);
 
   const applyTransform = useCallback(
     (transform: (ta: HTMLTextAreaElement) => Transform) => {
@@ -264,56 +238,6 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
       const selected = v.slice(selectionStart, selectionEnd) || 'Type your content here.';
       const block = `:::box ${color}${titlePart}\n${selected}\n:::`;
       return insertBlockAtCursor(ta, block);
-    });
-  }
-
-  function insertSection(kind: 'Section' | 'SubSection' | 'SubSubSection') {
-    applyTransform((ta) => {
-      const { selectionStart, selectionEnd, value: v } = ta;
-      const selected = v.slice(selectionStart, selectionEnd) || 'Title';
-      const block = `<-${kind}-${selected}->`;
-      const transform = insertBlockAtCursor(ta, block);
-      // Select just the title text so typing immediately replaces it.
-      const prefixLen = `<-${kind}-`.length;
-      const titleStart = transform.newValue.indexOf(block) + prefixLen;
-      return { ...transform, cursorStart: titleStart, cursorEnd: titleStart + selected.length };
-    });
-  }
-
-  function insertCallout(kind: CalloutKind) {
-    applyTransform((ta) => {
-      const { selectionStart, selectionEnd, value: v } = ta;
-      const selected = v.slice(selectionStart, selectionEnd) || 'Type your content here.';
-      const block = `:::${kind}\n${selected}\n:::`;
-      return insertBlockAtCursor(ta, block);
-    });
-  }
-
-  function insertCollapse() {
-    applyTransform((ta) => {
-      const { selectionStart, selectionEnd, value: v } = ta;
-      const selected = v.slice(selectionStart, selectionEnd) || 'Hidden content goes here.';
-      const block = `:::collapse "Click to expand"\n${selected}\n:::`;
-      return insertBlockAtCursor(ta, block);
-    });
-  }
-
-  function insertTabs() {
-    applyTransform((ta) => {
-      const block =
-        ':::tabs\n<-Tab-JavaScript->\nconsole.log("Hello");\n<-Tab-Python->\nprint("Hello")\n:::';
-      return insertBlockAtCursor(ta, block);
-    });
-  }
-
-  function insertInternalLink() {
-    applyTransform((ta) => {
-      const { selectionStart, selectionEnd, value: v } = ta;
-      const selected = v.slice(selectionStart, selectionEnd);
-      const markdown = selected ? `[[${selected}]]` : '[[Page Name]]';
-      const newValue = v.slice(0, selectionStart) + markdown + v.slice(selectionEnd);
-      const cursorPos = selectionStart + markdown.length;
-      return { newValue, cursorStart: cursorPos, cursorEnd: cursorPos };
     });
   }
 
@@ -495,25 +419,11 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
 
   const insertButtons = [
     { icon: Link2, label: 'Link (Ctrl+K)', action: openLinkDialog },
-    { icon: LinkIcon, label: 'Internal link [[Page]]', action: insertInternalLink },
     { icon: ImagePlus, label: 'Image', action: () => setImageDialogOpen(true) },
     { icon: Table2, label: 'Table', action: () => setTableDialogOpen(true) },
     { icon: Code2, label: 'Code block', action: () => setCodeDialogOpen(true) },
     { icon: Square, label: 'Box', action: () => setBoxDialogOpen(true) },
     { icon: Columns, label: 'Columns', action: insertColumns },
-  ];
-
-  const sectionButtons = [
-    { icon: Layers, label: 'Section', action: () => insertSection('Section') },
-    { icon: Layers, label: 'SubSection', action: () => insertSection('SubSection') },
-    { icon: Layers, label: 'SubSubSection', action: () => insertSection('SubSubSection') },
-  ];
-
-  const doclixButtons = [
-    { icon: Info, label: 'Info container', action: () => insertCallout('info') },
-    { icon: AlertCircle, label: 'Warning container', action: () => insertCallout('warning') },
-    { icon: ChevronDown, label: 'Collapsible section', action: insertCollapse },
-    { icon: PanelsTopLeft, label: 'Tabs', action: insertTabs },
   ];
 
   const tableToolButtons = [
@@ -571,35 +481,6 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
             <div className="mx-1 h-5 w-px bg-border" />
 
             {insertButtons.map(({ icon: Icon, label, action }) => (
-              <button
-                key={label}
-                type="button"
-                title={label}
-                onClick={action}
-                className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
-              >
-                <Icon className="h-4 w-4" />
-              </button>
-            ))}
-
-            <div className="mx-1 h-5 w-px bg-border" />
-
-            {sectionButtons.map(({ icon: Icon, label, action }) => (
-              <button
-                key={label}
-                type="button"
-                title={label}
-                onClick={action}
-                className="rounded-md px-1.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
-              >
-                <Icon className="mr-0.5 inline h-3.5 w-3.5" />
-                {label}
-              </button>
-            ))}
-
-            <div className="mx-1 h-5 w-px bg-border" />
-
-            {doclixButtons.map(({ icon: Icon, label, action }) => (
               <button
                 key={label}
                 type="button"
@@ -761,7 +642,6 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
             <div className="flex h-full min-w-0 flex-col gap-3 overflow-y-auto scrollbar-thin p-4">
               <TocPanel content={value} />
               <div
-                ref={previewRef}
                 className="doclix-prose"
                 dangerouslySetInnerHTML={{
                   __html: renderMarkdown(value) || '<p class="text-muted-foreground">Nothing to preview yet.</p>',
