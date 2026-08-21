@@ -29,20 +29,26 @@ import {
   ArrowUp,
   ArrowDown,
   FolderInput,
+  Users,
+  FileEdit,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Project, Section } from '@/types/database';
+import type { Project, ProjectRole, Section } from '@/types/database';
 import { Button } from '@/components/ui/Button';
 import { ProjectIcon } from '@/components/ProjectIcon';
+import { canEditDocs, canManageMembers, canManageProjectSettings } from '@/lib/permissions';
 
 interface SidebarProps {
   project: Project;
   sections: Section[];
   activeSlug: string | undefined;
-  isOwner: boolean;
+  role: ProjectRole;
   onReorder: (orderedIds: string[]) => void;
   onAddSection: () => void;
   onOpenSettings: () => void;
+  onOpenTeam?: () => void;
+  onOpenReviewQueue?: () => void;
+  pendingReviewCount?: number;
   onInsertAfter?: (section: Section) => void;
   onDuplicate?: (section: Section) => void;
   onDeleteSection?: (section: Section) => void;
@@ -185,7 +191,7 @@ function SortableItem({
   section,
   projectSlug,
   isActive,
-  isOwner,
+  canEdit,
   onNavigate,
   onInsertAfter,
   onDuplicate,
@@ -199,7 +205,7 @@ function SortableItem({
   section: Section;
   projectSlug: string;
   isActive: boolean;
-  isOwner: boolean;
+  canEdit: boolean;
   onNavigate: () => void;
   onInsertAfter?: (section: Section) => void;
   onDuplicate?: (section: Section) => void;
@@ -222,7 +228,7 @@ function SortableItem({
 
   return (
     <div ref={setNodeRef} style={style} className="group flex items-center">
-      {isOwner && (
+      {canEdit && (
         <button
           {...attributes}
           {...listeners}
@@ -239,13 +245,19 @@ function SortableItem({
           'flex flex-1 items-center gap-2 rounded-lg border-l-2 px-2.5 py-2 text-sm transition-colors duration-200',
           isActive
             ? 'border-l-[hsl(var(--gradient-start))] bg-gradient-to-r from-[hsl(var(--gradient-start)/0.14)] to-transparent font-medium text-primary'
-            : 'border-l-transparent text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
+            : 'border-l-transparent text-muted-foreground hover:bg-secondary/60 hover:text-foreground',
+          section.hidden && !isActive && 'opacity-50'
         )}
       >
         <FileText className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate">{section.title}</span>
+        {section.hidden && (
+          <span className="ml-auto shrink-0 rounded bg-secondary px-1 py-0.5 text-[9px] uppercase tracking-wide">
+            Hidden
+          </span>
+        )}
       </Link>
-      {isOwner && (
+      {canEdit && (
         <SectionMenu
           section={section}
           onInsertAfter={onInsertAfter}
@@ -266,10 +278,13 @@ export function Sidebar({
   project,
   sections,
   activeSlug,
-  isOwner,
+  role,
   onReorder,
   onAddSection,
   onOpenSettings,
+  onOpenTeam,
+  onOpenReviewQueue,
+  pendingReviewCount = 0,
   onInsertAfter,
   onDuplicate,
   onDeleteSection,
@@ -279,6 +294,10 @@ export function Sidebar({
 }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
+
+  const canEdit = canEditDocs(role);
+  const canManage = canManageProjectSettings(role);
+  const canManageTeam = canManageMembers(role);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -306,7 +325,7 @@ export function Sidebar({
             {project.title}
           </button>
         </div>
-        {isOwner && (
+        {canManage && (
           <button
             onClick={onOpenSettings}
             className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
@@ -316,6 +335,30 @@ export function Sidebar({
           </button>
         )}
       </div>
+
+      {canManageTeam && (
+        <div className="flex flex-col gap-1.5 border-b border-border px-3 py-3">
+          <button
+            onClick={onOpenTeam}
+            className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-medium text-muted-foreground transition-colors duration-200 hover:bg-secondary/60 hover:text-foreground"
+          >
+            <Users className="h-3.5 w-3.5" />
+            Team members
+          </button>
+          <button
+            onClick={onOpenReviewQueue}
+            className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-medium text-muted-foreground transition-colors duration-200 hover:bg-secondary/60 hover:text-foreground"
+          >
+            <FileEdit className="h-3.5 w-3.5" />
+            <span className="flex-1">Review changes</span>
+            {pendingReviewCount > 0 && (
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                {pendingReviewCount}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
 
       <nav className="flex-1 overflow-y-auto scrollbar-thin px-2 py-3">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -327,7 +370,7 @@ export function Sidebar({
                   section={section}
                   projectSlug={project.slug}
                   isActive={section.slug === activeSlug}
-                  isOwner={isOwner}
+                  canEdit={canEdit}
                   onNavigate={() => setMobileOpen(false)}
                   onInsertAfter={onInsertAfter}
                   onDuplicate={onDuplicate}
@@ -348,7 +391,7 @@ export function Sidebar({
         )}
       </nav>
 
-      {isOwner && (
+      {canEdit && (
         <div className="border-t border-border p-3">
           <Button variant="outline" size="sm" className="w-full" onClick={onAddSection}>
             <Plus className="h-3.5 w-3.5" />
@@ -357,17 +400,25 @@ export function Sidebar({
         </div>
       )}
 
-      <div className="border-t border-border px-4 py-2.5">
-        <a
-          href="https://doclix.pages.dev"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-muted-foreground/70 transition-colors duration-200 hover:text-primary"
-        >
-          Powered by
-          <span className="font-display font-semibold tracking-tight">DOCLIX</span>
-        </a>
-      </div>
+      {project.custom_footer && (
+        <div className="border-t border-border px-4 py-2.5 text-center text-[11px] text-muted-foreground/80">
+          {project.custom_footer}
+        </div>
+      )}
+
+      {!project.hide_branding && (
+        <div className="border-t border-border px-4 py-2.5">
+          <a
+            href="https://doclix.pages.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-muted-foreground/70 transition-colors duration-200 hover:text-primary"
+          >
+            Powered by
+            <span className="font-display font-semibold tracking-tight">DOCLIX</span>
+          </a>
+        </div>
+      )}
     </div>
   );
 

@@ -20,6 +20,7 @@ const DocProjectPage = lazy(() => import('@/pages/DocProjectPage'));
 const AccountPage = lazy(() => import('@/pages/AccountPage'));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
 const SearchResultsPage = lazy(() => import('@/pages/SearchResultsPage'));
+const AcceptInvitePage = lazy(() => import('@/pages/AcceptInvitePage'));
 
 export default function App() {
   return (
@@ -50,7 +51,16 @@ export default function App() {
             }
           />
 
-          {/* Public read-only viewing; edit controls gate themselves on ownership */}
+          <Route
+            path="/invite/:token"
+            element={
+              <ProtectedRoute>
+                <AcceptInvitePage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Public read-only viewing; edit controls gate themselves on role */}
           <Route path="/docs/:projectSlug" element={<DocProjectPage />} />
           <Route path="/docs/:projectSlug/:sectionSlug" element={<DocProjectPage />} />
 

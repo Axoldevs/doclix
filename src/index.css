@@ -311,6 +311,12 @@
 .doclix-prose del {
   text-decoration: line-through;
 }
+.doclix-prose mark {
+  background: hsl(var(--primary) / 0.25);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0.05rem 0.2rem;
+}
 .doclix-prose img {
   max-width: 100%;
   height: auto;

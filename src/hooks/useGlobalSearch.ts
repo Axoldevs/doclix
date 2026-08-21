@@ -12,7 +12,7 @@ export interface SearchResult {
 }
 
 function makeSnippet(content: string, query: string, radius = 60): string {
-  const plain = content.replace(/[#*`_>[\]()~-]/g, ' ').replace(/\s+/g, ' ').trim();
+  const plain = content.replace(/[#*`_>[\]()~=-]/g, ' ').replace(/\s+/g, ' ').trim();
   const idx = plain.toLowerCase().indexOf(query.toLowerCase());
   if (idx === -1) return plain.slice(0, radius * 2);
   const start = Math.max(0, idx - radius);

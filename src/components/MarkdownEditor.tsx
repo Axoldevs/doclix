@@ -6,12 +6,14 @@ import {
   type ChangeEvent,
   type KeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type ReactNode,
 } from 'react';
 import {
   Bold,
   Italic,
   Underline,
   Strikethrough,
+  Highlighter,
   Code,
   Heading1,
   Heading2,
@@ -40,6 +42,7 @@ import {
   RowsIcon,
   Square,
   Columns,
+  type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { renderMarkdown, type BoxColor } from '@/lib/markdown';
@@ -56,6 +59,8 @@ import { HistoryDialog } from '@/components/HistoryDialog';
 import { CommentsPanel } from '@/components/CommentsPanel';
 import { TocPanel } from '@/components/TocPanel';
 import { addTableRow, removeTableRow, addTableColumn, removeTableColumn, findTableAtCursor } from '@/lib/tableOps';
+import type { MentionableUser } from '@/lib/mentions';
+import type { Project, ProjectRole, Section } from '@/types/database';
 
 type ViewMode = 'edit' | 'split' | 'preview';
 
@@ -65,6 +70,11 @@ interface MarkdownEditorProps {
   readOnly?: boolean;
   sectionId?: string;
   isOwner?: boolean;
+  project?: Project | null;
+  section?: Section | null;
+  role?: ProjectRole;
+  mentionCandidates?: MentionableUser[];
+  saveLabel?: string;
 }
 
 interface Transform {
@@ -109,6 +119,78 @@ function insertBlockAtCursor(textarea: HTMLTextAreaElement, block: string): Tran
   return { newValue, cursorStart, cursorEnd };
 }
 
+function ToolGroup({ children }: { children: ReactNode }) {
+  return <div className="flex items-center gap-0.5">{children}</div>;
+}
+
+function ToolDivider() {
+  return <div className="mx-1 h-5 w-px shrink-0 bg-border" />;
+}
+
+function ToolButton({
+  icon: Icon,
+  label,
+  onClick,
+  disabled,
+  active,
+  accent,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  active?: boolean;
+  accent?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'rounded-md p-1.5 transition-colors duration-150 disabled:pointer-events-none disabled:opacity-30',
+        active
+          ? 'bg-secondary text-foreground'
+          : accent
+            ? 'text-primary hover:bg-primary/10'
+            : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+      )}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+}
+
+function ViewModeButton({
+  icon: Icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        'rounded p-1.5 transition-colors duration-150',
+        active ? 'bg-secondary text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" />
+    </button>
+  );
+}
+
 function saveStatusLabel(status: SaveStatus) {
   switch (status) {
     case 'saving':
@@ -122,7 +204,18 @@ function saveStatusLabel(status: SaveStatus) {
   }
 }
 
-export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, isOwner }: MarkdownEditorProps) {
+export function MarkdownEditor({
+  initialContent,
+  onSave,
+  readOnly,
+  sectionId,
+  isOwner,
+  project,
+  section,
+  role,
+  mentionCandidates,
+  saveLabel,
+}: MarkdownEditorProps) {
   const { value, setValue, undo, redo, reset, canUndo, canRedo } = useHistory(initialContent);
   const [viewMode, setViewMode] = useState<ViewMode>(readOnly ? 'preview' : 'split');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -378,6 +471,9 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
     } else if (e.key === 'u') {
       e.preventDefault();
       applyTransform((ta) => wrapSelection(ta, '__'));
+    } else if (e.key.toLowerCase() === 'h' && e.shiftKey) {
+      e.preventDefault();
+      applyTransform((ta) => wrapSelection(ta, '=='));
     } else if (e.key === 'k') {
       e.preventDefault();
       openLinkDialog();
@@ -407,6 +503,7 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
     { icon: Italic, label: 'Italic (Ctrl+I)', action: () => applyTransform((ta) => wrapSelection(ta, '*')) },
     { icon: Underline, label: 'Underline (Ctrl+U)', action: () => applyTransform((ta) => wrapSelection(ta, '__')) },
     { icon: Strikethrough, label: 'Strikethrough', action: () => applyTransform((ta) => wrapSelection(ta, '~~')) },
+    { icon: Highlighter, label: 'Highlight (Ctrl+Shift+H)', action: () => applyTransform((ta) => wrapSelection(ta, '==')) },
     { icon: Code, label: 'Inline code', action: () => applyTransform((ta) => wrapSelection(ta, '`')) },
   ];
 
@@ -433,192 +530,146 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
     { icon: Columns2, label: 'Remove column', action: () => handleTableOp(removeTableColumn) },
   ];
 
+  const wordCount = value.trim() ? value.trim().split(/\s+/).length : 0;
+
   return (
-    <div className="flex h-full overflow-hidden rounded-lg border border-border bg-card">
+    <div className="flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card">
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {!readOnly && (
-          <div className="flex flex-wrap items-center gap-1 border-b border-border px-2 py-1.5">
-            {headingButtons.map(({ icon: Icon, label, action }) => (
-              <button
-                key={label}
-                type="button"
-                title={label}
-                onClick={action}
-                className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
-              >
-                <Icon className="h-4 w-4" />
-              </button>
-            ))}
-
-            <div className="mx-1 h-5 w-px bg-border" />
-
-            {formatButtons.map(({ icon: Icon, label, action }) => (
-              <button
-                key={label}
-                type="button"
-                title={label}
-                onClick={action}
-                className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
-              >
-                <Icon className="h-4 w-4" />
-              </button>
-            ))}
-
-            <div className="mx-1 h-5 w-px bg-border" />
-
-            {blockButtons.map(({ icon: Icon, label, action }) => (
-              <button
-                key={label}
-                type="button"
-                title={label}
-                onClick={action}
-                className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
-              >
-                <Icon className="h-4 w-4" />
-              </button>
-            ))}
-
-            <div className="mx-1 h-5 w-px bg-border" />
-
-            {insertButtons.map(({ icon: Icon, label, action }) => (
-              <button
-                key={label}
-                type="button"
-                title={label}
-                onClick={action}
-                className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
-              >
-                <Icon className="h-4 w-4" />
-              </button>
-            ))}
-
-            {tableContext && (
-              <>
-                <div className="mx-1 h-5 w-px bg-border" />
-                {tableToolButtons.map(({ icon: Icon, label, action }) => (
-                  <button
-                    key={label}
-                    type="button"
-                    title={label}
-                    onClick={action}
-                    className="rounded-md p-1.5 text-primary transition-colors duration-200 hover:bg-primary/10"
-                  >
-                    <Icon className="h-4 w-4" />
-                  </button>
+          <div className="flex flex-col border-b border-border">
+            {/* Primary tool row: writing tools grouped by function, each group
+                given breathing room rather than one undifferentiated strip. */}
+            <div className="flex flex-wrap items-center gap-0.5 px-2 pb-1 pt-2">
+              <ToolGroup>
+                {headingButtons.map(({ icon: Icon, label, action }) => (
+                  <ToolButton key={label} icon={Icon} label={label} onClick={action} />
                 ))}
-              </>
-            )}
+              </ToolGroup>
 
-            <div className="mx-1 h-5 w-px bg-border" />
+              <ToolDivider />
 
-            <button
-              type="button"
-              title="Import .md or .txt file (replaces current content)"
-              onClick={() => fileInputRef.current?.click()}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
-            >
-              <Upload className="h-4 w-4" />
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".md,.markdown,.txt,text/markdown,text/plain"
-              className="hidden"
-              onChange={handleFileInputChange}
-            />
+              <ToolGroup>
+                {formatButtons.map(({ icon: Icon, label, action }) => (
+                  <ToolButton key={label} icon={Icon} label={label} onClick={action} />
+                ))}
+              </ToolGroup>
 
-            <div className="mx-1 h-5 w-px bg-border" />
+              <ToolDivider />
 
-            <button
-              type="button"
-              title="Undo (Ctrl+Z)"
-              disabled={!canUndo}
-              onClick={undo}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground disabled:opacity-30"
-            >
-              <Undo2 className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              title="Redo (Ctrl+Shift+Z)"
-              disabled={!canRedo}
-              onClick={redo}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground disabled:opacity-30"
-            >
-              <Redo2 className="h-4 w-4" />
-            </button>
+              <ToolGroup>
+                {blockButtons.map(({ icon: Icon, label, action }) => (
+                  <ToolButton key={label} icon={Icon} label={label} onClick={action} />
+                ))}
+              </ToolGroup>
 
-            {sectionId && (
-              <button
-                type="button"
-                title="Version history"
-                onClick={() => setHistoryOpen(true)}
-                className="rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground"
-              >
-                <History className="h-4 w-4" />
-              </button>
-            )}
+              <ToolDivider />
 
-            <div className="ml-auto flex items-center gap-1">
-              {sectionId && (
-                <button
-                  type="button"
-                  title="Comments"
-                  onClick={() => setCommentsOpen((prev) => !prev)}
-                  className={cn(
-                    'mr-1 rounded-md p-1.5 transition-colors duration-200',
-                    commentsOpen ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <MessageSquare className="h-4 w-4" />
-                </button>
+              <ToolGroup>
+                {insertButtons.map(({ icon: Icon, label, action }) => (
+                  <ToolButton key={label} icon={Icon} label={label} onClick={action} />
+                ))}
+              </ToolGroup>
+
+              {tableContext && (
+                <>
+                  <ToolDivider />
+                  <div className="flex items-center gap-0.5 rounded-md bg-primary/[0.07] px-1 py-0.5">
+                    <span className="mr-0.5 pl-1 font-mono text-[10px] uppercase tracking-wide text-primary/70">
+                      Table
+                    </span>
+                    {tableToolButtons.map(({ icon: Icon, label, action }) => (
+                      <ToolButton key={label} icon={Icon} label={label} onClick={action} accent />
+                    ))}
+                  </div>
+                </>
               )}
+            </div>
 
-              <div className="mr-2 flex items-center gap-1.5 text-xs">
-                <StatusIcon className={cn('h-3.5 w-3.5', statusInfo.className, statusInfo.spin && 'animate-spin')} />
-                <span className={statusInfo.className}>{statusInfo.text}</span>
-              </div>
+            {/* Secondary row: file/history actions on the left, save status
+                and the doc index signature + view switch on the right. */}
+            <div className="flex flex-wrap items-center gap-0.5 px-2 pb-1.5">
+              <ToolGroup>
+                <ToolButton
+                  icon={Upload}
+                  label="Import .md or .txt file (replaces current content)"
+                  onClick={() => fileInputRef.current?.click()}
+                />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".md,.markdown,.txt,text/markdown,text/plain"
+                  className="hidden"
+                  onChange={handleFileInputChange}
+                />
+              </ToolGroup>
 
-              <div className="flex items-center rounded-md border border-border p-0.5">
-                <button
-                  type="button"
-                  title="Edit only"
-                  onClick={() => setViewMode('edit')}
-                  className={cn(
-                    'rounded p-1.5 transition-colors duration-200',
-                    viewMode === 'edit' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  title="Split view"
-                  onClick={() => setViewMode('split')}
-                  className={cn(
-                    'rounded p-1.5 transition-colors duration-200',
-                    viewMode === 'split' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <Columns2 className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  title="Preview only"
-                  onClick={() => setViewMode('preview')}
-                  className={cn(
-                    'rounded p-1.5 transition-colors duration-200',
-                    viewMode === 'preview' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <Eye className="h-3.5 w-3.5" />
-                </button>
+              <ToolDivider />
+
+              <ToolGroup>
+                <ToolButton icon={Undo2} label="Undo (Ctrl+Z)" onClick={undo} disabled={!canUndo} />
+                <ToolButton icon={Redo2} label="Redo (Ctrl+Shift+Z)" onClick={redo} disabled={!canRedo} />
+                {sectionId && (
+                  <ToolButton icon={History} label="Version history" onClick={() => setHistoryOpen(true)} />
+                )}
+              </ToolGroup>
+
+              <div className="ml-auto flex items-center gap-2">
+                <span className="hidden font-mono text-[11px] tabular-nums text-muted-foreground/70 sm:inline">
+                  {wordCount.toLocaleString()} {wordCount === 1 ? 'word' : 'words'}
+                </span>
+
+                <div className="h-4 w-px bg-border" />
+
+                <div className="doc-index" title={saveLabel ? `${statusInfo.text} · ${saveLabel}` : statusInfo.text}>
+                  <StatusIcon
+                    className={cn('mr-1 h-3 w-3', statusInfo.className, statusInfo.spin && 'animate-spin')}
+                  />
+                  <span className={statusInfo.className}>{statusInfo.text}</span>
+                </div>
+                {saveLabel && (
+                  <span className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {saveLabel}
+                  </span>
+                )}
+
+                {sectionId && (
+                  <ToolButton
+                    icon={MessageSquare}
+                    label="Comments"
+                    onClick={() => setCommentsOpen((prev) => !prev)}
+                    active={commentsOpen}
+                  />
+                )}
+
+                <div className="flex items-center rounded-md border border-border bg-background/60 p-0.5">
+                  <ViewModeButton
+                    icon={Pencil}
+                    label="Edit only"
+                    active={viewMode === 'edit'}
+                    onClick={() => setViewMode('edit')}
+                  />
+                  <ViewModeButton
+                    icon={Columns2}
+                    label="Split view"
+                    active={viewMode === 'split'}
+                    onClick={() => setViewMode('split')}
+                  />
+                  <ViewModeButton
+                    icon={Eye}
+                    label="Preview only"
+                    active={viewMode === 'preview'}
+                    onClick={() => setViewMode('preview')}
+                  />
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        <div ref={editorWrapRef} className={cn('relative grid flex-1 overflow-hidden', viewMode === 'split' && 'grid-cols-1 md:grid-cols-2')}>
+        <div
+          ref={editorWrapRef}
+          className={cn('relative grid flex-1 overflow-hidden', viewMode === 'split' && 'grid-cols-1 md:grid-cols-2')}
+        >
           {viewMode !== 'preview' && (
             <div className="relative h-full min-w-0">
               <textarea
@@ -631,7 +682,7 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
                 readOnly={readOnly}
                 placeholder="Start writing… Use the toolbar, or type ::: for a box. Supports **bold**, tables, [links](url), and more."
                 className={cn(
-                  'h-full w-full resize-none overflow-y-auto scrollbar-thin bg-transparent p-4 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none',
+                  'h-full w-full resize-none overflow-y-auto scrollbar-thin bg-transparent p-4 font-mono text-[13px] leading-relaxed text-foreground placeholder:text-muted-foreground/70 focus:outline-none',
                   viewMode === 'split' && 'border-r border-border'
                 )}
                 spellCheck={false}
@@ -639,7 +690,7 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
             </div>
           )}
           {viewMode !== 'edit' && (
-            <div className="flex h-full min-w-0 flex-col gap-3 overflow-y-auto scrollbar-thin p-4">
+            <div className="flex h-full min-w-0 flex-col gap-3 overflow-y-auto scrollbar-thin bg-background/40 p-4">
               <TocPanel content={value} />
               <div
                 className="doclix-prose"
@@ -657,7 +708,10 @@ export function MarkdownEditor({ initialContent, onSave, readOnly, sectionId, is
           open={commentsOpen}
           onClose={() => setCommentsOpen(false)}
           sectionId={sectionId}
-          isOwner={!!isOwner}
+          project={project}
+          section={section}
+          role={role ?? (isOwner ? 'owner' : 'viewer')}
+          mentionCandidates={mentionCandidates}
         />
       )}
 

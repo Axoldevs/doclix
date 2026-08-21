@@ -24,12 +24,6 @@
 // file-based routing only reliably strips the outer ".ts" extension —
 // baking a literal ".md" into the routed path via the filename isn't a
 // documented, guaranteed pattern. Parsing the path ourselves is robust.
-//
-// Visibility ("public" / "private" / "password") is enforced here too:
-// this function is the one place every non-owner request -- browser,
-// curl, an LLM crawler hitting the .md endpoint -- actually passes
-// through, so it's the real security boundary. The client-side
-// ProjectAccessGate is only a convenience layer for the SPA.
 
 import { renderMarkdown } from '../../src/lib/markdown';
 
@@ -39,18 +33,7 @@ interface Env {
   ASSETS: Fetcher;
 }
 
-interface ProjectRow {
-  id: string;
-  title: string;
-  description: string | null;
-  visibility?: 'public' | 'private' | 'password';
-  og_image_url?: string | null;
-  custom_head_snippet?: string | null;
-}
-
 const SITE_URL = 'https://doclix.pages.dev';
-const PROJECT_SELECT =
-  'id,title,description,visibility,og_image_url,custom_head_snippet';
 
 function htmlEscape(value: string): string {
   return value
@@ -67,34 +50,6 @@ function truncateDescription(text: string, max = 160): string {
   const clean = text.replace(/\s+/g, ' ').trim();
   if (clean.length <= max) return clean;
   return clean.slice(0, max).replace(/\s+\S*$/, '') + '…';
-}
-
-// "private" always blocks non-owner requests outright (there's no
-// unlocking it). "password" blocks .md/crawler requests -- there's no
-// interactive prompt possible there -- but is allowed to fall through to
-// the SPA shell for normal page loads, where ProjectAccessGate handles
-// the password prompt client-side.
-function isGatedForCrawler(project: Pick<ProjectRow, 'visibility'>): boolean {
-  return project.visibility === 'private' || project.visibility === 'password';
-}
-
-async function renderGateResponse(env: Env, request: Request, project: ProjectRow): Promise<Response> {
-  // For a private project, don't even fall back to the shell with real
-  // content pre-rendered -- serve a minimal noindex page instead so the
-  // section text never appears in the initial HTML response.
-  const shellRes = await env.ASSETS.fetch(request);
-  let html = await shellRes.text();
-  html = html
-    .replace(/<title>.*?<\/title>/s, `<title>${htmlEscape(project.title)} | DOCLIX</title>`)
-    .replace(
-      /<meta name="description" content=".*?"\s*\/>/s,
-      `<meta name="description" content="This documentation is private." />`
-    )
-    .replace('<div id="root"></div>', '<div id="root"></div>\n    <meta name="robots" content="noindex, nofollow" />');
-  return new Response(html, {
-    status: 200,
-    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store' },
-  });
 }
 
 async function renderDocShell(
@@ -124,65 +79,53 @@ async function renderDocShell(
 
   try {
     const projectRes = await fetch(
-      `${supabaseUrl}/rest/v1/projects?slug=eq.${encodeURIComponent(projectSlug)}&select=${PROJECT_SELECT}`,
+      `${supabaseUrl}/rest/v1/projects?slug=eq.${encodeURIComponent(
+        projectSlug
+      )}&select=id,title,description`,
       { headers }
     );
     if (!projectRes.ok) return shellRes;
 
-    const projects: ProjectRow[] = await projectRes.json();
+    const projects: Array<{ id: string; title: string; description: string | null }> =
+      await projectRes.json();
     const project = projects[0];
     if (!project) return shellRes;
-
-    // Private projects never render real content server-side, since we
-    // have no visitor identity here to check ownership against. The SPA
-    // itself still enforces this again client-side once it knows who's
-    // signed in, but this stops the content from ever reaching the
-    // initial HTML for a logged-out visitor or crawler.
-    if (project.visibility === 'private') {
-      return renderGateResponse(env, request, project);
-    }
 
     let pageTitle = `${project.title} | DOCLIX`;
     let description = project.description ? truncateDescription(project.description) : `${project.title} documentation on DOCLIX.`;
     const canonicalPath = sectionSlug ? `/docs/${projectSlug}/${sectionSlug}` : `/docs/${projectSlug}`;
 
     // Fetch whichever section should render: the requested one, or (when
-    // no sectionSlug is in the URL) the project's first non-hidden
-    // section -- same rule DocProjectPage uses client-side for readers,
-    // so the pre-rendered content matches what React would show anyway.
-    // Password-protected projects skip content rendering entirely (the
-    // password gate hasn't been passed yet at this point in the request),
-    // but still get real title/description/OG tags so a shared link
-    // previews correctly without leaking the actual doc content.
+    // no sectionSlug is in the URL) the project's first section — same
+    // "default to sections[0]" rule DocProjectPage uses client-side, so
+    // the pre-rendered content matches what React would show anyway.
     let renderedContentHtml = '';
-    if (project.visibility !== 'password') {
-      const sectionFilter = sectionSlug
-        ? `project_id=eq.${project.id}&slug=eq.${encodeURIComponent(sectionSlug)}&hidden=eq.false`
-        : `project_id=eq.${project.id}&hidden=eq.false&order=position.asc&limit=1`;
-      const sectionRes = await fetch(
-        `${supabaseUrl}/rest/v1/sections?${sectionFilter}&select=title,content`,
-        { headers }
-      );
-      if (sectionRes.ok) {
-        const sectionsData: Array<{ title: string; content: string }> = await sectionRes.json();
-        const section = sectionsData[0];
-        if (section) {
-          pageTitle = `${section.title} | ${project.title} | DOCLIX`;
-          const plainText = (section.content ?? '')
-            .replace(/```[\s\S]*?```/g, ' ')
-            .replace(/[#*`_>\-\[\]()!]/g, ' ');
-          description = plainText.trim() ? truncateDescription(plainText) : description;
+    const sectionFilter = sectionSlug
+      ? `project_id=eq.${project.id}&slug=eq.${encodeURIComponent(sectionSlug)}`
+      : `project_id=eq.${project.id}&order=position.asc&limit=1`;
+    const sectionRes = await fetch(
+      `${supabaseUrl}/rest/v1/sections?${sectionFilter}&select=title,content`,
+      { headers }
+    );
+    if (sectionRes.ok) {
+      const sectionsData: Array<{ title: string; content: string }> = await sectionRes.json();
+      const section = sectionsData[0];
+      if (section) {
+        pageTitle = `${section.title} | ${project.title} | DOCLIX`;
+        const plainText = (section.content ?? '')
+          .replace(/```[\s\S]*?```/g, ' ')
+          .replace(/[#*`_>\-\[\]()!]/g, ' ');
+        description = plainText.trim() ? truncateDescription(plainText) : description;
 
-          try {
-            renderedContentHtml =
-              renderMarkdown(section.content ?? '') ||
-              '<p class="text-muted-foreground">This section has no content yet.</p>';
-          } catch {
-            // If rendering fails for any reason, fall back to no
-            // pre-rendered content rather than breaking the whole page —
-            // React will still fill it in client-side as before.
-            renderedContentHtml = '';
-          }
+        try {
+          renderedContentHtml =
+            renderMarkdown(section.content ?? '') ||
+            '<p class="text-muted-foreground">This section has no content yet.</p>';
+        } catch {
+          // If rendering fails for any reason, fall back to no
+          // pre-rendered content rather than breaking the whole page —
+          // React will still fill it in client-side as before.
+          renderedContentHtml = '';
         }
       }
     }
@@ -205,29 +148,21 @@ async function renderDocShell(
     // Canonical link and Open Graph tags aren't in index.html at all yet,
     // so add them right before </head> rather than trying to replace
     // something that doesn't exist.
-    const ogImage = project.og_image_url;
     const extraTags = [
       `<link rel="canonical" href="${htmlEscape(SITE_URL + canonicalPath)}" />`,
       `<meta property="og:title" content="${htmlEscape(pageTitle)}" />`,
       `<meta property="og:description" content="${htmlEscape(description)}" />`,
       `<meta property="og:url" content="${htmlEscape(SITE_URL + canonicalPath)}" />`,
       `<meta property="og:type" content="article" />`,
-      ogImage ? `<meta property="og:image" content="${htmlEscape(ogImage)}" />` : '',
-      `<meta name="twitter:card" content="${ogImage ? 'summary_large_image' : 'summary'}" />`,
-      // The project owner's own custom snippet (analytics, extra meta
-      // tags, etc.) is injected as-is -- it's their content and their
-      // risk, same trust boundary as pasting a script tag into any CMS.
-      project.custom_head_snippet ?? '',
-    ]
-      .filter(Boolean)
-      .join('\n    ');
+      `<meta name="twitter:card" content="summary" />`,
+    ].join('\n    ');
     html = html.replace('</head>', `    ${extraTags}\n  </head>`);
 
     return new Response(html, {
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': project.visibility === 'password' ? 'private, no-store' : 'public, max-age=300',
+        'Cache-Control': 'public, max-age=300',
       },
     });
   } catch {
@@ -275,22 +210,18 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, params, request })
   };
 
   const projectRes = await fetch(
-    `${supabaseUrl}/rest/v1/projects?slug=eq.${encodeURIComponent(cleanProjectSlug)}&select=${PROJECT_SELECT}`,
+    `${supabaseUrl}/rest/v1/projects?slug=eq.${encodeURIComponent(
+      cleanProjectSlug
+    )}&select=id,title,description`,
     { headers }
   );
 
   if (!projectRes.ok) return new Response('Failed to load project.', { status: 502 });
 
-  const projects: ProjectRow[] = await projectRes.json();
+  const projects: Array<{ id: string; title: string; description: string | null }> =
+    await projectRes.json();
   const project = projects[0];
   if (!project) return new Response('Not found', { status: 404 });
-
-  // The .md machine-readable endpoints have no way to prompt for a
-  // password and no session to check for ownership, so private and
-  // password-protected projects both simply refuse these requests.
-  if (isGatedForCrawler(project)) {
-    return new Response('This documentation is not publicly accessible.', { status: 403 });
-  }
 
   const markdownHeaders = {
     'Content-Type': 'text/markdown; charset=utf-8',
@@ -300,7 +231,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, params, request })
   // Whole-project request: /docs/{projectSlug}.md
   if (!cleanSectionSlug) {
     const sectionsRes = await fetch(
-      `${supabaseUrl}/rest/v1/sections?project_id=eq.${project.id}&hidden=eq.false&select=title,content&order=position.asc`,
+      `${supabaseUrl}/rest/v1/sections?project_id=eq.${project.id}&select=title,content&order=position.asc`,
       { headers }
     );
     const sections: Array<{ title: string; content: string }> = sectionsRes.ok
@@ -320,7 +251,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, params, request })
   const sectionRes = await fetch(
     `${supabaseUrl}/rest/v1/sections?project_id=eq.${project.id}&slug=eq.${encodeURIComponent(
       cleanSectionSlug
-    )}&hidden=eq.false&select=title,content`,
+    )}&select=title,content`,
     { headers }
   );
 
@@ -334,4 +265,3 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, params, request })
 
   return new Response(markdown, { status: 200, headers: markdownHeaders });
 };
-

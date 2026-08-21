@@ -7,6 +7,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/Button';
 import { GlobalSearchDialog } from '@/components/GlobalSearchDialog';
 import { ProjectIcon } from '@/components/ProjectIcon';
+import { NotificationBell } from '@/components/NotificationBell';
 
 export function ProjectHeader({ title, iconUrl }: { title?: string; iconUrl?: string | null }) {
   const { user, signOut } = useAuth();
@@ -61,6 +62,8 @@ export function ProjectHeader({ title, iconUrl }: { title?: string; iconUrl?: st
         >
           {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
         </button>
+
+        {user && <NotificationBell />}
 
         {/* Full action row: shown once there's room for it (md+) */}
         <div className="hidden items-center gap-2 md:flex">

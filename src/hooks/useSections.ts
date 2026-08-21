@@ -1,32 +1,119 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
+import { projectUnlockKey } from '@/lib/projectAccess';
 import type { Section } from '@/types/database';
 
-export function useSections(projectId: string | undefined) {
+export type SectionsGate = 'private' | 'password' | null;
+
+export function useSections(
+  projectId: string | undefined,
+  projectSlug: string | undefined,
+  projectVisibility: 'public' | 'private' | 'password' | undefined
+) {
   const [sections, setSections] = useState<Section[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Non-null once a fetch has told us this project needs a gate the
+  // current viewer hasn't passed -- 'private' (nothing to do) or
+  // 'password' (show the prompt). Stays null for public projects and for
+  // anyone who is authorized (owner, or already unlocked).
+  const [gate, setGate] = useState<SectionsGate>(null);
 
   const fetchSections = useCallback(async () => {
     if (!projectId) return;
     setLoading(true);
     setError(null);
+    setGate(null);
 
-    const { data, error } = await getSupabase()
+    // Try the fast, direct RLS path first: this succeeds for public
+    // projects for anyone, and for private/password projects when the
+    // caller is the owner (see the "Owners can view their own sections"
+    // policy in schema.sql). It returns zero rows -- not an error --
+    // when RLS excludes every row, which is exactly the private/
+    // password-non-owner case, so an empty result here is the signal to
+    // fall back to the gated endpoint rather than a definitive "no
+    // sections exist".
+    const { data, error: rlsError } = await getSupabase()
       .from('sections')
       .select('*')
       .eq('project_id', projectId)
       .order('position', { ascending: true });
 
-    if (error) {
-      setError(error.message);
-    } else {
-      setSections(data ?? []);
+    if (rlsError) {
+      setError(rlsError.message);
+      setLoading(false);
+      return;
     }
+
+    if (data && data.length > 0) {
+      setSections(data);
+      setLoading(false);
+      return;
+    }
+
+    // A genuinely empty public project: zero rows really does mean zero
+    // sections, not "blocked by RLS" -- skip the extra round trip.
+    if (projectVisibility === 'public') {
+      setSections([]);
+      setLoading(false);
+      return;
+    }
+
+    // Zero rows on a private/password project: could genuinely be an
+    // empty project we own, or a gated project we're not authorized to
+    // read directly. Ask /api/project-sections, which knows the
+    // difference (it checks project.visibility itself) and will tell us
+    // via `gate` if we're blocked, rather than us guessing from an empty
+    // array alone.
+    if (!projectSlug) {
+      setSections([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const session = (await getSupabase().auth.getSession()).data.session;
+      let unlockToken: string | null = null;
+      try {
+        unlockToken = sessionStorage.getItem(projectUnlockKey(projectId));
+      } catch {
+        // sessionStorage unavailable (private browsing etc.) -- fall
+        // through with no token, same as never having unlocked.
+      }
+
+      const res = await fetch('/api/project-sections', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ projectSlug, unlockToken: unlockToken ?? undefined }),
+      });
+
+      if (res.status === 401 || res.status === 403) {
+        const body = (await res.json()) as { gate?: SectionsGate };
+        setGate(body.gate ?? null);
+        setSections([]);
+      } else if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(body.error ?? 'Failed to load sections.');
+      } else {
+        const body = (await res.json()) as { sections: Section[] };
+        setSections(body.sections ?? []);
+      }
+    } catch {
+      setError('Failed to load sections.');
+    }
+
     setLoading(false);
-  }, [projectId]);
+  }, [projectId, projectSlug]);
 
   useEffect(() => {
+    fetchSections();
+  }, [fetchSections]);
+
+  /** Called after a successful password unlock so the newly-authorized read runs immediately. */
+  const retryAfterUnlock = useCallback(() => {
     fetchSections();
   }, [fetchSections]);
 
@@ -157,7 +244,7 @@ export function useSections(projectId: string | undefined) {
   );
 
   const updateSection = useCallback(
-    async (id: string, updates: { title?: string; content?: string; slug?: string }) => {
+    async (id: string, updates: { title?: string; content?: string; slug?: string; hidden?: boolean }) => {
       const { data, error } = await getSupabase()
         .from('sections')
         .update({ ...updates, updated_at: new Date().toISOString() })
@@ -209,7 +296,9 @@ export function useSections(projectId: string | undefined) {
     sections,
     loading,
     error,
+    gate,
     refetch: fetchSections,
+    retryAfterUnlock,
     createSection,
     createSectionAt,
     createSections,

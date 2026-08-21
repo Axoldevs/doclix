@@ -14,9 +14,16 @@ interface TranslateButtonProps {
   /** Called with translated text, or null to reset back to the original. */
   onTranslated: (text: string | null) => void;
   disabled?: boolean;
+  /**
+   * Restrict the offered languages to this list of codes (project owner's
+   * "Localization" setting). Omitted or empty means "no restriction" --
+   * every COMMON_LANGUAGES entry is offered, same as before this prop
+   * existed.
+   */
+  enabledLanguages?: string[];
 }
 
-export function TranslateButton({ sourceText, onTranslated, disabled }: TranslateButtonProps) {
+export function TranslateButton({ sourceText, onTranslated, disabled, enabledLanguages }: TranslateButtonProps) {
   const [open, setOpen] = useState(false);
   const [activeLang, setActiveLang] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -67,6 +74,10 @@ export function TranslateButton({ sourceText, onTranslated, disabled }: Translat
 
   const preferred = getPreferredLanguage();
   const activeLabel = COMMON_LANGUAGES.find((l) => l.code === activeLang)?.label;
+  const offeredLanguages =
+    enabledLanguages && enabledLanguages.length > 0
+      ? COMMON_LANGUAGES.filter((l) => enabledLanguages.includes(l.code))
+      : COMMON_LANGUAGES;
 
   return (
     <div className="relative" ref={menuRef}>
@@ -100,7 +111,7 @@ export function TranslateButton({ sourceText, onTranslated, disabled }: Translat
             {!activeLang && <Check className="h-3 w-3 text-primary" />}
           </button>
           <div className="my-1 h-px bg-border" />
-          {COMMON_LANGUAGES.filter((l) => l.code !== 'en').map((lang) => (
+          {offeredLanguages.filter((l) => l.code !== 'en').map((lang) => (
             <button
               key={lang.code}
               onClick={() => handleSelect(lang.code)}

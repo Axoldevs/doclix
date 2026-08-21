@@ -44,8 +44,8 @@ ${lastmod ? `    <lastmod>${lastmod}</lastmod>\n` : ''}    <changefreq>${changef
 const BLOG_POSTS: Array<{ slug: string; date: string }> = [
   { slug: '2026-07-10-search-was-always-the-point', date: '2026-07-10' },
   { slug: '2026-07-26-new-landing-page', date: '2026-07-26' },
-  { slug: '2026-08-19-highlight-hotfix', date: '2026-08-19' },
   { slug: '2026-08-01-smarter-search-and-floating-nav', date: '2026-08-01' },
+  { slug: '2026-08-19-highlight-hotfix', date: '2026-08-19' },
   { slug: '2026-08-21-editor-redesign', date: '2026-08-21' },
 ];
 
@@ -86,29 +86,20 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
       const timeout = setTimeout(() => controller.abort(), 3000);
 
       const [projectsRes, sectionsRes] = await Promise.all([
-        fetch(
-          `${supabaseUrl}/rest/v1/projects?visibility=eq.public&sitemap_excluded=eq.false&select=id,slug,updated_at`,
-          {
-            headers,
-            signal: controller.signal,
-          }
-        ),
-        fetch(
-          `${supabaseUrl}/rest/v1/sections?hidden=eq.false&select=slug,updated_at,project_id,projects!inner(slug,visibility,sitemap_excluded)`,
-          {
-            headers,
-            signal: controller.signal,
-          }
-        ),
+        fetch(`${supabaseUrl}/rest/v1/projects?select=slug,updated_at`, {
+          headers,
+          signal: controller.signal,
+        }),
+        fetch(`${supabaseUrl}/rest/v1/sections?select=slug,updated_at,projects!inner(slug)`, {
+          headers,
+          signal: controller.signal,
+        }),
       ]);
 
       clearTimeout(timeout);
 
-      let publicProjectIds = new Set<string>();
-
       if (projectsRes.ok) {
-        const projects: Array<{ id: string; slug: string; updated_at?: string }> = await projectsRes.json();
-        publicProjectIds = new Set(projects.map((p) => p.id));
+        const projects: Array<{ slug: string; updated_at?: string }> = await projectsRes.json();
         for (const p of projects) {
           entries.push(
             urlEntry(
@@ -125,24 +116,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
         const sections: Array<{
           slug: string;
           updated_at?: string;
-          project_id: string;
-          projects?:
-            | { slug: string; visibility?: string; sitemap_excluded?: boolean }
-            | { slug: string; visibility?: string; sitemap_excluded?: boolean }[];
+          projects?: { slug: string } | { slug: string }[];
         }> = await sectionsRes.json();
         for (const s of sections) {
-          // Belt-and-suspenders: the query already filters by the joined
-          // project's visibility/sitemap_excluded via !inner, but a
-          // section whose project didn't come back in publicProjectIds
-          // (e.g. a race between the two requests) is skipped too, so a
-          // project that just flipped to private/excluded can't leave a
-          // stray section URL behind in this response.
-          if (!publicProjectIds.has(s.project_id)) continue;
-          const projectRel = Array.isArray(s.projects) ? s.projects[0] : s.projects;
-          const projectSlug = projectRel?.slug;
+          const projectSlug = Array.isArray(s.projects) ? s.projects[0]?.slug : s.projects?.slug;
           if (!projectSlug) continue;
-          if (projectRel.visibility && projectRel.visibility !== 'public') continue;
-          if (projectRel.sitemap_excluded) continue;
           entries.push(
             urlEntry(
               `${SITE_URL}/docs/${projectSlug}/${s.slug}`,

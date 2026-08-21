@@ -137,6 +137,8 @@ function renderInline(text: string): string {
   out = out.replace(/__([^_]+)__/g, '<u>$1</u>');
   // Strikethrough ~~text~~
   out = out.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  // Highlight ==text==
+  out = out.replace(/==([^=]+)==/g, '<mark>$1</mark>');
   // Italic *text* (single asterisks, after bold has been consumed)
   out = out.replace(/\*([^*]+)\*/g, '<em>$1</em>');
 
